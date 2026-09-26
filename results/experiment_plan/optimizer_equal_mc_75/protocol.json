@@ -1,0 +1,98 @@
+{
+  "methods": [
+    "random_search",
+    "cma_es",
+    "direct_ppo"
+  ],
+  "scenarios": [
+    "T1",
+    "T2",
+    "T3",
+    "T4"
+  ],
+  "master_seeds": [
+    42,
+    43,
+    44
+  ],
+  "seed_protocol": "derived_from_master",
+  "dev_seed_rule": "master_seed * 100 + [1, 2, 3]",
+  "test_seed_rule": "master_seed * 100 + [4, 5, 6]",
+  "dev_seeds_override": null,
+  "test_seeds_override": null,
+  "iterations": 75,
+  "max_candidates": 75,
+  "max_mc_calls_dev": 225,
+  "budget_unit": "candidate_evaluations",
+  "cma_es_generation_note": "CMA-ES stops at the shared candidate ceiling; a truncated final generation is evaluated but does not update the covariance.",
+  "n_runs": 100,
+  "search_dim": 10,
+  "param_names": [
+    "w1",
+    "zeta1",
+    "tao1",
+    "w2",
+    "zeta2",
+    "tao2",
+    "w3",
+    "zeta3",
+    "N_pn",
+    "ny_lim"
+  ],
+  "param_bounds": {
+    "w1": [
+      20.0,
+      60.0
+    ],
+    "zeta1": [
+      0.35,
+      1.2
+    ],
+    "tao1": [
+      0.05,
+      0.35
+    ],
+    "w2": [
+      20.0,
+      60.0
+    ],
+    "zeta2": [
+      0.35,
+      1.2
+    ],
+    "tao2": [
+      0.05,
+      0.35
+    ],
+    "w3": [
+      20.0,
+      60.0
+    ],
+    "zeta3": [
+      0.35,
+      1.2
+    ],
+    "N_pn": [
+      3.0,
+      6.0
+    ],
+    "ny_lim": [
+      16.0,
+      20.0
+    ]
+  },
+  "default_params": {
+    "w1": 40.0,
+    "zeta1": 0.75,
+    "tao1": 0.15,
+    "w2": 35.0,
+    "zeta2": 0.75,
+    "tao2": 0.15,
+    "w3": 40.0,
+    "zeta3": 0.7,
+    "N_pn": 4.0,
+    "ny_lim": 20.0
+  },
+  "matlab_script": "/home/admcai/workspace/GSMultiAgent13-V0.3/knowledge_base/matlab/guidance/monte_carlo_single.m",
+  "mc_root": "data/mc"
+}

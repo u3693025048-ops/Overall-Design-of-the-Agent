@@ -1,0 +1,39 @@
+{
+  "schema": "Canvas-IR/verify-chain@1",
+  "id": "tpl:verify-chain:baseline",
+  "title": "验证链骨架（校核：当前组合是否满足 R0）",
+  "level": "验证",
+  "case": "ALL",
+  "description": "画布生成 Agent 复用的验证链最小骨架。优化链须额外含 MATLAB 节点（见 §4.6）。",
+  "nodes": [
+    {"id": "req",    "func": "Requirement",  "impl": "SysML参数图", "role": "指标/约束汇聚与判定"},
+    {"id": "aero",   "func": "AeroTable",    "impl": "经验公式默认", "role": "气动系数(方案级)"},
+    {"id": "model",  "func": "ModelicaSim",  "impl": "OpenModelica", "role": "弹道积分/6DoF（唯一）"},
+    {"id": "judge",  "func": "Constraint",   "impl": "SysML约束节点", "role": "约束判断 H(s) / R0"}
+  ],
+  "edges": [
+    {"from": "req",  "to": "aero",  "type": "data"},
+    {"from": "aero", "to": "model", "type": "data"},
+    {"from": "req",  "to": "judge", "type": "control"},
+    {"from": "model","to": "judge", "type": "data"}
+  ],
+  "bindings": [
+    {"node": "aero",  "param": "alpha_max", "value": 20, "unit": "deg", "level": "几何-气动",
+     "note": "经验公式失效边界 |alpha|>20° 须改走 CFD"},
+    {"node": "model", "param": "RUN_CASE", "value": "T", "level": "验证",
+     "note": "T/G/AP/R 子工况由任务指定"},
+    {"node": "judge", "param": "CEP", "value": "R95", "level": "总体",
+     "note": "口径锁 R95，示例取包线下沿 3 m"}
+  ],
+  "exec": {
+    "topo_order": ["req", "aero", "model", "judge"],
+    "parallel_groups": [],
+    "timeout_s": 600,
+    "retry": 1,
+    "note": "优化链须在此骨架后追加 MATLAB 优化节点并形成 Modelica—MATLAB 循环"
+  },
+  "artifacts": {
+    "matlab_template": "knowledge_base/matlab/guidance/monte_carlo_single.m",
+    "aero_csv": "deliverables/05_models/aero/aero_table_v1.csv"
+  }
+}

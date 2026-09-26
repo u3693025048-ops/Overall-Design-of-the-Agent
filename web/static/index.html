@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="data:," />
+<title>GSMultiAgent 知识库管理</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161d27; --panel2:#1d2632; --line:#2a3543;
+    --txt:#e6edf3; --mut:#9fb0c0; --dim:#6b7b8c;
+    --acc:#ef9f27; --acc2:#5dcaa5; --blue:#7f77dd; --red:#e24b4a; --green:#639922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.6 -apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif}
+  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;background:var(--panel)}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  header .sub{color:var(--dim);font-size:12px}
+  .btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
+  .btn:hover{border-color:var(--acc)}
+  .btn.acc{background:var(--acc);color:#1a1206;border-color:var(--acc);font-weight:600}
+  .btn.danger:hover{border-color:var(--red);color:var(--red)}
+  .btn[disabled]{opacity:.55;cursor:default}
+  .stat{display:flex;gap:18px;margin-left:auto;font-size:12px;color:var(--mut)}
+  .stat b{color:var(--txt);font-size:15px}
+  nav{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+  nav button{background:none;border:none;color:var(--mut);padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent}
+  nav button.on{color:var(--txt);border-bottom-color:var(--acc)}
+  main{padding:18px 20px;max-width:1100px}
+  .tab{display:none} .tab.on{display:block}
+  select,input,textarea{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
+  textarea{width:100%;min-height:140px;resize:vertical}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+  .card .top{display:flex;align-items:center;gap:10px;cursor:pointer}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+  .tag.lib{color:var(--blue);border-color:var(--blue)}
+  .tag.lv{color:var(--acc2);border-color:var(--acc2)}
+  .tag.cs{color:var(--acc);border-color:var(--acc)}
+  .score{margin-left:auto;font-size:11px;color:var(--dim)}
+  .meta{color:var(--dim);font-size:11px;margin-top:4px;word-break:break-all}
+  .body{display:none;margin-top:8px;white-space:pre-wrap;font-size:12px;color:var(--mut);border-top:1px dashed var(--line);padding-top:8px;max-height:300px;overflow:auto}
+  .body.open{display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--mut);font-weight:500;font-size:12px}
+  .ok{color:var(--green)} .bad{color:var(--red)} .warn{color:var(--acc)}
+  .hint{color:var(--dim);font-size:12px;margin:6px 0 14px}
+  .pill{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+  .actbtn{font-size:12px;padding:3px 8px;margin-left:6px}
+  .msg{display:none;margin:0;padding:8px 20px;font-size:12px;background:#3a1d1d;color:#ffb4b4;border-bottom:1px solid var(--line)}
+  .msg.ok{background:#16301f;color:#8fe0b0}
+  .link{color:var(--acc);cursor:pointer;text-decoration:underline dotted}
+  .spin{display:inline-block;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>GSMultiAgent 知识库管理</h1>
+    <div class="sub">向量 + BM25 + RRF 融合 · level/case/lib 硬过滤 · 四库(规范/模型/模板/经验)</div>
+  </div>
+  <div class="stat" id="stat"></div>
+  <button class="btn acc" id="reindex">四库重索引</button>
+</header>
+<div class="msg" id="msg"></div>
+<nav>
+  <button data-t="search" class="on">检索</button>
+  <button data-t="docs">文档</button>
+  <button data-t="exp">经验卡</button>
+  <button data-t="add">新增</button>
+</nav>
+<main>
+  <!-- 检索 -->
+  <section class="tab on" id="search">
+    <div class="row">
+      <input id="q" placeholder="检索查询（如：跨声速 气动 导数突变 调度）" style="flex:1;min-width:280px" />
+      <select id="f_level"></select>
+      <select id="f_case"></select>
+      <select id="f_lib"></select>
+      <input id="topk" type="number" value="10" min="1" max="50" style="width:70px" />
+      <button class="btn acc" id="doSearch">检索</button>
+    </div>
+    <div class="hint">硬过滤：选择 层级/工况/库 后，仅返回命中的候选；不填则全库混合排序。结果含 fused/vector/bm25 三档分数。（检索框内按回车也可检索）</div>
+    <div id="results"></div>
+  </section>
+
+  <!-- 文档 -->
+  <section class="tab" id="docs">
+    <div class="row">
+      <select id="d_lib"></select>
+      <select id="d_level"></select>
+      <select id="d_case"></select>
+      <input id="d_q" placeholder="筛选关键词" style="flex:1;min-width:200px" />
+      <button class="btn" id="doList">列出</button>
+    </div>
+    <table id="docTable">
+      <thead><tr><th>doc_id</th><th>库</th><th>层级</th><th>工况</th><th>conf</th><th>审核</th><th>操作</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="docDetail"></div>
+  </section>
+
+  <!-- 经验卡 -->
+  <section class="tab" id="exp">
+    <div class="hint">经验库（parameter_experience_memory.json 自动转化）。每张卡带 层级/工况/适应度，回流会改变置信度。</div>
+    <div id="expList"></div>
+  </section>
+
+  <!-- 新增 -->
+  <section class="tab" id="add">
+    <div class="row">
+      <select id="a_lib"></select>
+      <select id="a_level"></select>
+      <select id="a_case"></select>
+      <label class="pill"><input type="checkbox" id="a_mc" /> 可机检</label>
+      <label class="pill"><input type="checkbox" id="a_dist" /> 蒸馏书</label>
+    </div>
+    <textarea id="a_content" placeholder="文档内容（规范条文 / 模板 / 经验描述）..."></textarea>
+    <div class="row" style="margin-top:10px">
+      <input id="a_src" placeholder="source_of_truth（可选，原生文件路径）" style="flex:1" />
+      <button class="btn acc" id="doAdd">入库</button>
+    </div>
+    <div id="addMsg" class="hint"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* ── 常量 ───────────────────────────────────────────────────────────── */
+var LIBS = ["", "norm", "model", "template", "experience"];
+var LEVELS = ["", "总体", "几何-气动", "内回路", "外回路", "验证"];
+var CASES = ["", "T", "G", "AP", "R", "ALL"];
+
+/* ── 小工具 ─────────────────────────────────────────────────────────── */
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s === null || s === undefined ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
+}
+function fill(sel, arr) {
+  if (!sel) return;
+  sel.innerHTML = arr.map(function (o) {
+    return '<option value="' + esc(o) + '">' + (esc(o) || "全部") + "</option>";
+  }).join("");
+}
+function showMsg(html, cls) {
+  var el = $("msg");
+  el.className = "msg" + (cls ? " " + cls : "");
+  el.innerHTML = html || "";
+  el.style.display = html ? "block" : "none";
+}
+/* 任何脚本错误 / 请求异常都直接显示在页面顶部，避免"点了没反应" */
+window.addEventListener("error", function (e) {
+  showMsg("脚本错误：" + (e.message || e.type) + "  (行 " + (e.lineno || "?") + ")", "bad");
+});
+window.addEventListener("unhandledrejection", function (e) {
+  var r = e.reason;
+  showMsg("请求异常：" + ((r && r.message) || r), "bad");
+});
+
+/* 统一请求：非 2xx 抛错，错误统一冒泡到上面的处理器 */
+async function api(url, opt) {
+  var r = await fetch(url, opt);
+  var t = await r.text();
+  var j = null;
+  try { j = t ? JSON.parse(t) : null; } catch (_) {}
+  if (!r.ok) throw new Error((j && (j.detail || j.message)) || ("HTTP " + r.status));
+  return j;
+}
+
+/* ── 下拉初始化 ─────────────────────────────────────────────────────── */
+fill($("f_level"), LEVELS); fill($("f_case"), CASES); fill($("f_lib"), LIBS);
+fill($("d_level"), LEVELS); fill($("d_case"), CASES); fill($("d_lib"), LIBS);
+fill($("a_level"), LEVELS); fill($("a_case"), CASES); fill($("a_lib"), LIBS);
+$("a_lib").value = "norm"; $("a_level").value = "总体"; $("a_case").value = "ALL";
+
+/* ── Tab 切换 ───────────────────────────────────────────────────────── */
+document.querySelectorAll("nav button").forEach(function (b) {
+  b.onclick = function () {
+    document.querySelectorAll("nav button").forEach(function (x) { x.classList.remove("on"); });
+    document.querySelectorAll(".tab").forEach(function (x) { x.classList.remove("on"); });
+    b.classList.add("on");
+    var t = b.dataset.t;
+    $(t).classList.add("on");
+    if (t === "docs") listDocs();
+    if (t === "exp") loadExp();
+    if (t === "search") $("q").focus();
+  };
+});
+
+/* ── 顶部统计 ───────────────────────────────────────────────────────── */
+async function loadStat() {
+  try {
+    var r = await api("/api/stats");
+    var s = r.by_lib || {};
+    $("stat").innerHTML =
+      "文档 <b>" + (r.total_documents || 0) + "</b> · 规范 <b>" + (s.norm || 0) +
+      "</b> · 模型 <b>" + (s.model || 0) + "</b> · 模板 <b>" + (s.template || 0) +
+      "</b> · 经验 <b>" + (s.experience || 0) + "</b>" +
+      (r.vector_enabled ? ' · <span class="pill">向量已启用</span>' : ' · <span class="pill">纯 BM25</span>');
+  } catch (e) {
+    $("stat").innerHTML = '<span class="bad">统计失败</span>';
+  }
+}
+
+/* ── 四库重索引 ─────────────────────────────────────────────────────── */
+$("reindex").onclick = async function () {
+  var b = $("reindex");
+  b.disabled = true; var old = b.textContent; b.textContent = "索引中…";
+  showMsg("四库重索引进行中（首次约 30s，之后仅扫描未变更文件，很快）…", "");
+  try {
+    var r = await api("/api/reindex", { method: "POST" });
+    b.textContent = "完成 ✔";
+    showMsg(esc(r.message || JSON.stringify(r.counts || r)), "ok");
+    await loadStat();
+  } catch (e) {
+    b.textContent = "失败";
+    showMsg("重索引失败：" + esc(e.message), "bad");
+  }
+  setTimeout(function () { b.textContent = old; b.disabled = false; }, 1500);
+};
+
+/* ── 检索 ───────────────────────────────────────────────────────────── */
+async function doSearch() {
+  var q = $("q").value.trim();
+  if (!q) { $("q").focus(); return; }
+  var box = $("results");
+  box.innerHTML = '<div class="spin">检索中…</div>';
+  var p = new URLSearchParams({ q: q, top_k: $("topk").value });
+  [["f_level", "level"], ["f_case", "case"], ["f_lib", "lib"]].forEach(function (kv) {
+    var v = $(kv[0]).value; if (v) p.set(kv[1], v);
+  });
+  try {
+    var r = await api("/api/search?" + p.toString());
+    renderRes(r.results || []);
+  } catch (e) {
+    box.innerHTML = '<div class="hint bad">检索失败：' + esc(e.message) + "</div>";
+  }
+}
+$("doSearch").onclick = doSearch;
+$("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
+
+function renderRes(list) {
+  var box = $("results");
+  box.innerHTML = "";
+  if (!list.length) { box.innerHTML = '<div class="hint">无结果（可放宽 层级/工况/库 过滤条件）</div>'; return; }
+  list.forEach(function (d) {
+    var m = d.metadata || {};
+    var el = document.createElement("div");
+    el.className = "card";
+    var v = d.vector_score === null || d.vector_score === undefined ? "-" : d.vector_score;
+    var b = d.bm25_score === null || d.bm25_score === undefined ? "-" : d.bm25_score;
+    var f = d.fused_score === null || d.fused_score === undefined ? "" : d.fused_score;
+    el.innerHTML =
+      '<div class="top"><span class="tag lib">' + esc(m.lib || "?") + '</span>' +
+      '<span class="tag lv">' + esc(m.level || "") + '</span>' +
+      '<span class="tag cs">' + esc(m.case || "") + '</span>' +
+      '<span class="score">fused ' + esc(f) + " · vec " + esc(v) + " · bm25 " + esc(b) + "</span></div>" +
+      '<div class="meta">' + esc(d.doc_id) + "</div>" +
+      '<div class="body">' + esc(d.content || "") + "</div>";
+    el.querySelector(".top").onclick = function () {
+      el.querySelector(".body").classList.toggle("open");
+    };
+    box.appendChild(el);
+  });
+}
+
+/* ── 文档列表 ───────────────────────────────────────────────────────── */
+async function listDocs() {
+  var p = new URLSearchParams();
+  [["d_lib", "lib"], ["d_level", "level"], ["d_case", "case"]].forEach(function (kv) {
+    var v = $(kv[0]).value; if (v) p.set(kv[1], v);
+  });
+  var q = $("d_q").value.trim(); if (q) p.set("q", q);
+  var tb = document.querySelector("#docTable tbody");
+  tb.innerHTML = '<tr><td colspan="7" class="spin">加载中…</td></tr>';
+  try {
+    var r = await api("/api/docs?" + p.toString());
+    var rows = r || [];
+    tb.innerHTML = "";
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="7" class="hint">无匹配文档</td></tr>'; return; }
+    rows.forEach(function (d) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(d.doc_id) + '">' +
+          '<span class="link">' + esc(d.doc_id) + "</span></td>" +
+        "<td>" + esc(d.lib || "") + "</td><td>" + esc(d.level || "") + "</td><td>" + esc(d.case || "") + "</td>" +
+        "<td>" + esc(d.confidence === null || d.confidence === undefined ? "" : d.confidence) + "</td>" +
+        "<td>" + (d.reviewed ? '<span class="ok">✔</span>' : '<span class="dim">—</span>') +
+          (d.failed ? ' <span class="bad">失效</span>' : "") + "</td>" +
+        '<td><button class="btn actbtn" data-act="open">看</button>' +
+        '<button class="btn actbtn" data-act="up">👍</button>' +
+        '<button class="btn actbtn" data-act="down">👎</button>' +
+        '<button class="btn actbtn danger" data-act="del">删</button></td>';
+      tr.querySelector(".link").onclick = function () { openDoc(d.doc_id); };
+      tr.querySelectorAll("[data-act]").forEach(function (btn) {
+        btn.onclick = async function () {
+          var a = btn.dataset.act;
+          btn.disabled = true;
+          try {
+            if (a === "open") { await openDoc(d.doc_id); }
+            else if (a === "del") {
+              await api("/api/doc/" + encodeURIComponent(d.doc_id), { method: "DELETE" });
+              showMsg("已删除：" + esc(d.doc_id), "ok");
+            } else {
+              var fr = await api("/api/feedback", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ doc_id: d.doc_id, success: a === "up" }),
+              });
+              showMsg("回流已记录：" + esc(JSON.stringify(fr)), a === "up" ? "ok" : "");
+            }
+            if (a !== "open") { await listDocs(); await loadStat(); }
+          } catch (e) {
+            showMsg("操作失败：" + esc(e.message), "bad");
+          }
+          btn.disabled = false;
+        };
+      });
+      tb.appendChild(tr);
+    });
+  } catch (e) {
+    tb.innerHTML = '<tr><td colspan="7" class="bad">加载失败：' + esc(e.message) + "</td></tr>";
+  }
+}
+$("doList").onclick = listDocs;
+
+async function openDoc(docId) {
+  var box = $("docDetail");
+  box.innerHTML = '<div class="card spin">读取 ' + esc(docId) + " …</div>";
+  try {
+    var d = await api("/api/doc/" + encodeURIComponent(docId));
+    var m = d.metadata || {};
+    box.innerHTML =
+      '<div class="card"><div class="top"><span class="tag lib">' + esc(m.lib || "") +
+      '</span><span class="tag lv">' + esc(m.level || "") + '</span><span class="tag cs">' + esc(m.case || "") +
+      '</span><span class="score">conf ' + esc(m.confidence === undefined ? "" : m.confidence) + "</span></div>" +
+      '<div class="meta">' + esc(d.doc_id) + "</div>" +
+      '<div class="body open">' + esc(d.content || "") + "</div></div>";
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (e) {
+    box.innerHTML = '<div class="card bad">读取失败：' + esc(e.message) + "</div>";
+  }
+}
+
+/* ── 经验卡 ─────────────────────────────────────────────────────────── */
+async function loadExp() {
+  var box = $("expList");
+  box.innerHTML = '<div class="spin">加载中…</div>';
+  try {
+    var r = await api("/api/experience");
+    var cards = (r && r.cards) || [];
+    box.innerHTML = "";
+    if (!cards.length) { box.innerHTML = '<div class="hint">经验库为空（可在“新增”里选 experience 库添加，或执行四库重索引）</div>'; return; }
+    cards.forEach(function (d) {
+      var el = document.createElement("div");
+      el.className = "card";
+      el.innerHTML =
+        '<div class="top"><span class="tag lib">experience</span><span class="tag lv">' + esc(d.level || "") +
+        '</span><span class="tag cs">' + esc(d.case || "") + '</span><span class="score">conf ' +
+        esc(d.confidence === undefined ? "" : d.confidence) + "</span></div>" +
+        '<div class="meta">' + esc(d.doc_id) + "</div>" +
+        '<div class="body">' + esc(d.snippet || "") + "</div>";
+      el.querySelector(".top").onclick = async function () {
+        var bd = el.querySelector(".body");
+        bd.classList.toggle("open");
+        if (bd.classList.contains("open") && bd.dataset.full !== "1") {
+          try {
+            var full = await api("/api/doc/" + encodeURIComponent(d.doc_id));
+            bd.textContent = full.content || d.snippet || "";
+            bd.dataset.full = "1";
+          } catch (_) {}
+        }
+      };
+      box.appendChild(el);
+    });
+  } catch (e) {
+    box.innerHTML = '<div class="hint bad">加载失败：' + esc(e.message) + "</div>";
+  }
+}
+
+/* ── 新增入库 ───────────────────────────────────────────────────────── */
+$("doAdd").onclick = async function () {
+  var c = $("a_content").value.trim();
+  if (!c) { showMsg("内容为空，请先填写文档内容", "bad"); $("a_content").focus(); return; }
+  var body = {
+    content: c,
+    lib: $("a_lib").value || "norm",
+    level: $("a_level").value || "总体",
+    case: $("a_case").value || "ALL",
+    source_of_truth: $("a_src").value || "",
+    machine_checkable: $("a_mc").checked,
+    distilled: $("a_dist").checked,
+  };
+  var mb = $("doAdd"); mb.disabled = true;
+  $("addMsg").textContent = "入库中…";
+  try {
+    var r = await api("/api/doc", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    $("addMsg").innerHTML = '<span class="ok">入库成功：' + esc(JSON.stringify(r)) + "</span>";
+    $("a_content").value = ""; $("a_src").value = "";
+    await loadStat();
+  } catch (e) {
+    $("addMsg").innerHTML = '<span class="bad">入库失败：' + esc(e.message) + "</span>";
+  }
+  mb.disabled = false;
+};
+
+/* ── 启动 ───────────────────────────────────────────────────────────── */
+loadStat();
+</script>
+</body>
+</html>

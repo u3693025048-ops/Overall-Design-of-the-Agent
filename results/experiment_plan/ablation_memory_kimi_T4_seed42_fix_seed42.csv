@@ -1,0 +1,2 @@
+method,scenario,seed,error,error_msg,first_success,design_path,mc_calls_dev,mc_calls_test,wall_clock_sec,inference_sec,orchestration_sec,sim_sec,iterations_used,hit_rate_dev,SEP_dev,peak_nz_dev,PM_dev,BW_dev,feasible_dev,hit_rate_test,SEP_test,peak_nz_test,PM_test,BW_test,feasible_test
+E0_full_kimi,T4,42,False,,False,needs_iteration,7,3,9660.812552544987,0.0,9628.36906296399,32.443489580997266,3,100.0,4.41,18.18,74.25900161941168,10.926326836636969,False,100.0,4.335,14.950299999999995,73.39437227884754,11.279999999999994,False

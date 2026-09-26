@@ -1,0 +1,179 @@
+{
+  "id": "book010",
+  "book": "《系统化飞控实战》010 · 导弹制导",
+  "title": "book010 · 导弹制导",
+  "html_title": "book010 导弹制导 — 数据资产与算法库",
+  "generated_by": "_extract_assets.py",
+  "out": "guidance_library.html",
+  "domains": [
+    {
+      "code": "A",
+      "file": "domain_A_PN.md",
+      "name": "比例导引 PN"
+    },
+    {
+      "code": "B",
+      "file": "domain_B_Optimal.md",
+      "name": "最优制导"
+    },
+    {
+      "code": "C",
+      "file": "domain_C_Terminal.md",
+      "name": "终端制导"
+    },
+    {
+      "code": "D",
+      "file": "domain_D_SystemModeling.md",
+      "name": "制导系统建模仿真"
+    },
+    {
+      "code": "E",
+      "file": "domain_E_Trajectory.md",
+      "name": "飞行器轨迹控制"
+    }
+  ],
+  "groups": [
+    {
+      "name": "入口",
+      "items": [
+        {
+          "path": "README.md",
+          "desc": "book010 主索引"
+        }
+      ]
+    },
+    {
+      "name": "数据资产（理论 / 公式 / 经验）",
+      "items": [
+        {
+          "path": "assets/00_INDEX.md",
+          "desc": "资产总索引"
+        },
+        {
+          "path": "assets/01_theory.md",
+          "desc": "理论体系（30 卡）"
+        },
+        {
+          "path": "assets/02_formulas.md",
+          "desc": "公式集（197 条）"
+        },
+        {
+          "path": "assets/03_heuristics.md",
+          "desc": "经验法则集（439 条）"
+        },
+        {
+          "path": "assets/04_parameters.md",
+          "desc": "工程参数速查表"
+        },
+        {
+          "path": "assets/05_checklist.md",
+          "desc": "设计与仿真检查清单"
+        },
+        {
+          "path": "assets/data/formulas.csv",
+          "desc": "公式 CSV（可检索）"
+        },
+        {
+          "path": "assets/data/heuristics.csv",
+          "desc": "经验 CSV（可检索）"
+        }
+      ]
+    },
+    {
+      "name": "Python 算法库",
+      "items": [
+        {
+          "path": "algorithms/README.md",
+          "desc": "算法库说明"
+        },
+        {
+          "path": "algorithms/gnc_core.py",
+          "desc": "基础工具层"
+        },
+        {
+          "path": "algorithms/dynamics.py",
+          "desc": "执行机构与积分"
+        },
+        {
+          "path": "algorithms/guidance_laws.py",
+          "desc": "10 种制导律"
+        },
+        {
+          "path": "algorithms/seeker.py",
+          "desc": "导引头与噪声"
+        },
+        {
+          "path": "algorithms/engagement.py",
+          "desc": "交战仿真引擎"
+        },
+        {
+          "path": "algorithms/metrics.py",
+          "desc": "指标与评级"
+        },
+        {
+          "path": "algorithms/monte_carlo.py",
+          "desc": "蒙特卡洛框架"
+        },
+        {
+          "path": "algorithms/run_all.py",
+          "desc": "一键自检 + 演示"
+        }
+      ]
+    },
+    {
+      "name": "RIA++ 卡片原文",
+      "items": [
+        {
+          "path": "domain_A_PN.md",
+          "desc": "域 A 比例导引"
+        },
+        {
+          "path": "domain_B_Optimal.md",
+          "desc": "域 B 最优制导"
+        },
+        {
+          "path": "domain_C_Terminal.md",
+          "desc": "域 C 终端制导"
+        },
+        {
+          "path": "domain_D_SystemModeling.md",
+          "desc": "域 D 系统建模仿真"
+        },
+        {
+          "path": "domain_E_Trajectory.md",
+          "desc": "域 E 轨迹控制"
+        }
+      ]
+    },
+    {
+      "name": "符号推导与弹道仿真",
+      "items": [
+        {
+          "path": "verify_lqr_pn.py",
+          "desc": "SymPy 符号推导"
+        },
+        {
+          "path": "verify_engagement.py",
+          "desc": "弹道仿真（v3）"
+        },
+        {
+          "path": "verify_engagement.png",
+          "desc": "8 面板仿真结果图"
+        }
+      ]
+    },
+    {
+      "name": "资产抽取与站点生成",
+      "items": [
+        {
+          "path": "_extract_assets.py",
+          "desc": "卡片 → 结构化资产"
+        },
+        {
+          "path": "_build_library.py",
+          "desc": "本站点生成器"
+        }
+      ]
+    }
+  ]
+}

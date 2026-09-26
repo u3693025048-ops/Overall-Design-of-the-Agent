@@ -1,0 +1,43 @@
+{
+  "schema": "gsm_bootstrap_export_v1",
+  "export_id": "T1_dev_1_20260822_213802_a414e586",
+  "created_at": "2026-08-22T21:38:02",
+  "scenario": "T1",
+  "split": "dev",
+  "source_seed": 1,
+  "target_seeds": [
+    2
+  ],
+  "n_runs": 5,
+  "kill_radius": 10.0,
+  "matlab_script_path": "C:\\Users\\admin\\AppData\\Local\\Temp\\pytest-of-admin\\pytest-31\\test_and_uses_cache0\\dummy.m",
+  "dp_params": {
+    "w1": 1.0
+  },
+  "base_result": {
+    "hit_rate": 95.0,
+    "SEP": 3.0,
+    "peak_nz": 5.0,
+    "PM": 55.0,
+    "BW": 40.0,
+    "feasible": true,
+    "constraint_violations": {},
+    "sim_time_sec": 0.01,
+    "success": true,
+    "error": null,
+    "error_msg": null,
+    "mc_seed": 1,
+    "split": "dev",
+    "synthetic": false
+  },
+  "local_aggregate": {
+    "hit_rate": 95.0,
+    "SEP": 3.0,
+    "peak_nz": 5.0,
+    "PM": 55.0,
+    "BW": 40.0,
+    "feasible": true,
+    "success": true,
+    "bootstrap_fill": false
+  }
+}

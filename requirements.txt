@@ -1,0 +1,58 @@
+# Core Dependencies
+numpy>=1.24.0
+scipy>=1.10.0
+tqdm>=4.65.0
+python-dotenv>=1.0.0
+PyYAML>=6.0
+
+# RL Dependencies
+torch>=2.0.0
+
+# RAG Knowledge Base Dependencies
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
+# Hybrid Retrieval (BM25 complement) + metadata schema validation
+rank_bm25>=0.2.1
+jsonschema>=4.0
+
+# Knowledge Base Web Management UI
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9
+
+# Reflection Agent Dependencies
+langchain-core>=0.2.0
+langchain-openai>=0.1.0
+pydantic>=2.0.0
+
+# LLM Provider Dependencies
+openai>=1.0.0
+anthropic>=0.20.0
+
+# Development & Testing (Optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+ruff>=0.1.0
+
+# ─── Optional: Layer 2 (Hermes orchestration) ─────────────────────────────
+# Not required for imports, Step 1 init, RL optimizer, or unit tests.
+# Install only if you need full Hermes tool-calling orchestration:
+#   pip install git+https://github.com/NousResearch/hermes-agent.git
+# Provides the `run_agent` module used by multi_agent.integration.hermes_integration.
+
+# ─── Optional: Simulation engines ───────────────────────────────────────────
+# At least one is recommended for high-fidelity sim; the framework falls back
+# to a pure-Python simulator when none is available.
+#
+# GNU Octave (system package, not pip-installable)
+#   Windows: https://www.gnu.org/software/octave/download.html
+#   Ubuntu : sudo apt install octave octave-control
+#
+# MATLAB Engine API for Python (requires local MATLAB + license)
+#   cd <matlabroot>/extern/engines/python && python -m pip install .
+#   Or on R2022b+: pip install matlabengine  (must match MATLAB release)
+#   https://www.mathworks.com/help/matlab/matlab_external/install-the-matlab-engine-for-python.html
+#
+# matlabengine

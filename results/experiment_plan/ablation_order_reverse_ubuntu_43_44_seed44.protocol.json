@@ -1,0 +1,107 @@
+{
+  "scenarios": [
+    "T1",
+    "T2",
+    "T3",
+    "T4"
+  ],
+  "master_seeds": [
+    44
+  ],
+  "seed_protocol": "master_seed * 100 + offsets",
+  "dev_offsets": [
+    1,
+    2,
+    3
+  ],
+  "test_offsets": [
+    4,
+    5,
+    6
+  ],
+  "seed_manifest": {
+    "44": {
+      "dev": [
+        4401,
+        4402,
+        4403
+      ],
+      "test": [
+        4404,
+        4405,
+        4406
+      ]
+    }
+  },
+  "and_logic": "bootstrap_fill: MATLAB on first listed seed only; remaining seeds filled by resampling first-seed trajectories",
+  "mc_and_bootstrap_fill": true,
+  "n_runs_per_mc_call": 100,
+  "iterations": 5,
+  "metric_requirements": {
+    "hit_rate_min": 92.0,
+    "sep_max": 7.0,
+    "peak_ny_max": 20.0,
+    "peak_ny_mean_max": 20.0,
+    "pm_min": 45.0,
+    "pm_max": 70.0,
+    "bw_min": 20.0,
+    "bw_max": 85.0
+  },
+  "search_dim": 10,
+  "search_space_source": "multi_agent.rl.matlab_rl_optimizer.ALL_TUNABLE_PARAM_SPECS",
+  "suite": "order",
+  "configs": {
+    "E0_full": {
+      "ablation": {
+        "parameter_experience_reuse": {
+          "enabled": true
+        },
+        "memory_search": {
+          "enabled": true
+        },
+        "reflection_agent": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "jobs": [
+    {
+      "suite": "order",
+      "config_name": "E0_full",
+      "scenario": "T4",
+      "master_seed": 44,
+      "output_csv": "/home/admcai/workspace/GSMultiAgent13-V0.3/results/experiment_plan/ablation_order_reverse_ubuntu_43_44_seed44.csv",
+      "order_name": "reverse",
+      "execute": true
+    },
+    {
+      "suite": "order",
+      "config_name": "E0_full",
+      "scenario": "T3",
+      "master_seed": 44,
+      "output_csv": "/home/admcai/workspace/GSMultiAgent13-V0.3/results/experiment_plan/ablation_order_reverse_ubuntu_43_44_seed44.csv",
+      "order_name": "reverse",
+      "execute": true
+    },
+    {
+      "suite": "order",
+      "config_name": "E0_full",
+      "scenario": "T2",
+      "master_seed": 44,
+      "output_csv": "/home/admcai/workspace/GSMultiAgent13-V0.3/results/experiment_plan/ablation_order_reverse_ubuntu_43_44_seed44.csv",
+      "order_name": "reverse",
+      "execute": true
+    },
+    {
+      "suite": "order",
+      "config_name": "E0_full",
+      "scenario": "T1",
+      "master_seed": 44,
+      "output_csv": "/home/admcai/workspace/GSMultiAgent13-V0.3/results/experiment_plan/ablation_order_reverse_ubuntu_43_44_seed44.csv",
+      "order_name": "reverse",
+      "execute": true
+    }
+  ],
+  "csv": "/home/admcai/workspace/GSMultiAgent13-V0.3/results/experiment_plan/ablation_order_reverse_ubuntu_43_44_seed44.csv"
+}

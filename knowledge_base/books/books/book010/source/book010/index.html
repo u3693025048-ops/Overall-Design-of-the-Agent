@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统化飞控实战</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      background: linear-gradient(135deg, #fff4e8 0%, #ffe0ec 50%, #eef3ff 100%);
+      color: #222;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 36px 18px 60px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: 30px;
+      padding: 50px 30px;
+      text-align: center;
+      color: #fff;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, .35), transparent 25%),
+        linear-gradient(135deg, #ff4d6d, #ff8a00, #7c3aed);
+      box-shadow: 0 20px 50px rgba(255, 92, 92, .25);
+      margin-bottom: 30px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 8px 18px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .22);
+      font-size: 14px;
+      margin-bottom: 18px;
+      backdrop-filter: blur(10px);
+    }
+
+    .hero h1 {
+      font-size: 42px;
+      margin-bottom: 15px;
+      letter-spacing: 2px;
+    }
+
+    .hero p {
+      font-size: 18px;
+      opacity: .95;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 25px 0 35px;
+    }
+
+    .stat {
+      background: rgba(255, 255, 255, .8);
+      backdrop-filter: blur(10px);
+      border-radius: 22px;
+      padding: 22px;
+      text-align: center;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .08);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 30px;
+      color: #ff4d6d;
+      margin-bottom: 8px;
+    }
+
+    .stat span {
+      color: #666;
+      font-size: 15px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 22px;
+    }
+
+    .course-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .course-card {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, .08);
+      transition: .25s;
+    }
+
+    .course-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, .14);
+    }
+
+    .course-card::before {
+      content: "";
+      position: absolute;
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      top: -35px;
+      right: -35px;
+      background: linear-gradient(135deg, #ff8a00, #ff4d6d);
+      opacity: .15;
+    }
+
+    .course-card a {
+      text-decoration: none;
+      color: #222;
+      display: block;
+    }
+
+    .course-no {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #ff4d6d, #ff8a00);
+      color: #fff;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .course-title {
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.5;
+    }
+
+    .course-desc {
+      margin-top: 12px;
+      color: #777;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .enter {
+      margin-top: 18px;
+      color: #ff4d6d;
+      font-weight: bold;
+      font-size: 15px;
+    }
+
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+    }
+
+    .footer a {
+      text-decoration: none;
+      color: #3b82f6;
+      font-size: 14px;
+      transition: .2s;
+    }
+
+    .footer a:hover {
+      color: #ff4d6d;
+      text-decoration: underline;
+    }
+
+    @media(max-width:768px) {
+      .hero h1 {
+        font-size: 30px;
+      }
+
+      .hero p {
+        font-size: 16px;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .course-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <div class="hero">
+      <div class="badge">系统化学习 · 知识库文档资料</div>
+      <h1>系统化飞控实战</h1>
+      <p>【总目录】点击下方课程标题，即可进入对应学习页面</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <strong>20门</strong>
+        <span>精品课程</span>
+      </div>
+
+      <div class="stat">
+        <strong>600章</strong>
+        <span>章节资料</span>
+      </div>
+
+      <div class="stat">
+        <strong>电子文档资料</strong>
+        <span>html格式/本地打开</span>
+      </div>
+    </div>
+
+    <div class="section-title">课程目录</div>
+
+    <div class="course-list">
+
+      <div class="course-card">
+        <a href="《导弹制导回路稳定性分析与调试》/index.html">
+          <div class="course-no">01</div>
+          <div class="course-title">《导弹制导回路稳定性分析与调试》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《导弹制导系统半实物仿真搭建实战课程》/index.html">
+          <div class="course-no">02</div>
+          <div class="course-title">《导弹制导系统半实物仿真搭建实战课程》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《导弹制导系统建模与参数整定》/index.html">
+          <div class="course-no">03</div>
+          <div class="course-title">《导弹制导系统建模与参数整定》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《导弹制导系统抗干扰设计方法》/index.html">
+          <div class="course-no">04</div>
+          <div class="course-title">《导弹制导系统抗干扰设计方法》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《最优制导在多导弹协同中的运用》/index.html">
+          <div class="course-no">05</div>
+          <div class="course-title">《最优制导在多导弹协同中的运用》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《最优制导在机动目标拦截中的应用》/index.html">
+          <div class="course-no">06</div>
+          <div class="course-title">《最优制导在机动目标拦截中的应用》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《最优制导律数值求解与代码实现》/index.html">
+          <div class="course-no">07</div>
+          <div class="course-title">《最优制导律数值求解与代码实现》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《最优制导律设计全流程解析》/index.html">
+          <div class="course-no">08</div>
+          <div class="course-title">《最优制导律设计全流程解析》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《比例导引与扩展比例导引对比分析》/index.html">
+          <div class="course-no">09</div>
+          <div class="course-title">《比例导引与扩展比例导引对比分析》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《比例导引与预测制导融合技术》/index.html">
+          <div class="course-no">10</div>
+          <div class="course-title">《比例导引与预测制导融合技术》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《比例导引法脱靶量优化技巧》/index.html">
+          <div class="course-no">11</div>
+          <div class="course-title">《比例导引法脱靶量优化技巧》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《比例导引法：从原理到弹道仿真》/index.html">
+          <div class="course-no">12</div>
+          <div class="course-title">《比例导引法：从原理到弹道仿真》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《终端制导导引头视场约束处理》/index.html">
+          <div class="course-no">13</div>
+          <div class="course-title">《终端制导导引头视场约束处理》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《终端制导末端攻角约束控制》/index.html">
+          <div class="course-no">14</div>
+          <div class="course-title">《终端制导末端攻角约束控制》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《终端制导末端能量管理实战》/index.html">
+          <div class="course-no">15</div>
+          <div class="course-title">《终端制导末端能量管理实战》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《终端制导末端速度矢量控制》/index.html">
+          <div class="course-no">16</div>
+          <div class="course-title">《终端制导末端速度矢量控制》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《飞行器轨迹控制中的气动参数辨识》/index.html">
+          <div class="course-no">17</div>
+          <div class="course-title">《飞行器轨迹控制中的气动参数辨识》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《飞行器轨迹控制算法工程化实战》/index.html">
+          <div class="course-no">18</div>
+          <div class="course-title">《飞行器轨迹控制算法工程化实战》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《飞行器轨迹控制鲁棒性提升策略》/index.html">
+          <div class="course-no">19</div>
+          <div class="course-title">《飞行器轨迹控制鲁棒性提升策略》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+
+      <div class="course-card">
+        <a href="《飞行器轨迹规划与跟踪控制实战》/index.html">
+          <div class="course-no">20</div>
+          <div class="course-title">《飞行器轨迹规划与跟踪控制实战》</div>
+          <div class="course-desc">点击进入课程，查看完整学习资料。</div>
+          <div class="enter">进入课程 →</div>
+        </a>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <a href="http://124.221.106.7/wendang/" target="_blank">
+        点击此处查看：50个+行业、500+细分领域、10w+门课程资料-大目录汇总
+      </a>
+    </div>
+
+  </div>
+
+</body>
+</html>

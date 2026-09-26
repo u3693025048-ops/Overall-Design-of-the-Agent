@@ -1,0 +1,18 @@
+\begin{tabular}{lccccccc}
+\hline
+Method & Scenario & First success$^{\mathrm{a}}$ & Feasible (dev/test) & Total time (min) & Iterations$^{\mathrm{b}}$ & MC calls (dev)$^{\mathrm{c}}$ & Time/call (min) \\
+\hline
+Single-Agent Hermes & T1 & 3/3 & 3/3, 3/3 & $11.2 \pm 3.1$ & $4.0 \pm 1.0$ & $180 \pm 45$ & $0.061 \pm 0.002$ \\
+ & T2 & 3/3 & 3/3, 3/3 & $14.5 \pm 0.2$ & $4.7 \pm 0.6$ & $225 \pm 0$ & $0.064 \pm 0.001$ \\
+ & T3 & 3/3 & 3/3, 3/3 & $13.7 \pm 1.5$ & $4.7 \pm 0.6$ & $225 \pm 0$ & $0.060 \pm 0.006$ \\
+ & T4 & 3/3 & 3/3, 3/3 & $11.7 \pm 2.2$ & $3.7 \pm 0.6$ & $180 \pm 45$ & $0.065 \pm 0.006$ \\
+\hline
+Pooled & T1--T4 & 12/12 & 12/12, 12/12 & $12.8 \pm 2.2$ & $4.3 \pm 0.8$ & $203 \pm 36$ & $0.062 \pm 0.004$ \\
+\hline
+\end{tabular}
+
+{\raggedright\footnotesize
+$^{\mathrm{a}}$Same definition as Table 5: final development-set feasibility (\texttt{final\_dev\_feasible}), not ``all PPO episodes in one outer iteration''.
+$^{\mathrm{b}}$Outer workflow loops (cap 5).
+$^{\mathrm{c}}$Real MATLAB calls (three development seeds; search width 10 trajectories). Range 135--225. Source: \texttt{optimizer\_equal\_mc\_75\_sah\_n10}.
+\par}

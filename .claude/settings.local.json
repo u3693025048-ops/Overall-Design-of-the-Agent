@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python experiments\\\\optimizer_baselines_43.py --methods random_search --scenarios T1 --master-seeds 42 --iterations 1 --n-runs 10 --output-dir results\\\\optimizer_baselines_43_smoke)",
+      "Bash(python \"experiments/optimizer_baselines_43.py\" --methods random_search --scenarios T1 --master-seeds 42 --iterations 1 --n-runs 10 --output-dir \"results/optimizer_baselines_43_smoke\")",
+      "Bash(python \"experiments/optimizer_baselines_43.py\" --methods random_search --scenarios T1 --master-seeds 42 43 44 --iterations 1 --n-runs 10 --output-dir \"results/smoke3\")",
+      "Bash(python \"experiments/optimizer_baselines_43.py\" --methods single_agent_hermes --scenarios T1 --master-seeds 42 43 44 --iterations 1 --n-runs 10 --output-dir \"results/smoke_sah\")",
+      "Bash(python -c \"import torch; print\\(torch.__version__\\)\")",
+      "Bash(conda run *)",
+      "Bash(find /c/Users/Lenovo -name \"python.exe\" 2>/dev/null | grep -i GS312 | head -5 *)",
+      "Read(//c/Users/Lenovo/**)",
+      "Bash(python \"experiments/optimizer_baselines_43.py\" --methods single_agent_hermes --scenarios T1 --master-seeds 42 43 44 --iterations 1 --n-runs 10 --output-dir \"results/smoke_sah2\")",
+      "WebFetch(domain:hermes-agent.nousresearch.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(xargs grep -l \"仿真报告\\\\|simulation.*report\\\\|report.*json\")"
+    ]
+  }
+}

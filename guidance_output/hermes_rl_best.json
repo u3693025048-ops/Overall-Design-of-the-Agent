@@ -1,0 +1,35 @@
+{
+  "status": "needs_iteration",
+  "best_params": {
+    "w1": 35.0,
+    "zeta1": 0.8,
+    "tao1": 0.2,
+    "w2": 44.0,
+    "zeta2": 0.758,
+    "tao2": 0.324,
+    "w3": 42.0,
+    "zeta3": 0.717,
+    "N_pn": 4.5,
+    "ny_lim": 20.0
+  },
+  "best_metrics": {
+    "hit_rate": 40.0,
+    "SEP": 74.35,
+    "peak_ny": 19.91,
+    "pitch_PM": 76.8,
+    "pitch_BW": 11.300000000000002,
+    "pitch_GM": 6.0,
+    "miss_distance": 74.35,
+    "peak_n": 19.91,
+    "peak_ny_mean": 19.91,
+    "peak_ny_max": 24.35,
+    "peak_n_max": 24.35,
+    "_parse_incomplete": false,
+    "_sim_source": "matlab"
+  },
+  "best_reward": 0.0,
+  "total_episodes": 3,
+  "outer_iterations": 5,
+  "task_mode": "MODIFY_LAW",
+  "best_selection": "MODIFY_LAW"
+}

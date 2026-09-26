@@ -1,0 +1,6 @@
+method,first_success,feasible_dev,feasible_test,mc_calls_dev,budget_cap,mc_calls_first_success_mean,note
+GSMultiAgent (E0),9/12,9/12,5/12,1–22,225,,first_success=final dev feasible (same 9 cells); MC outer-derived + bootstrap; not 75x3
+Random Search,8/12,8/12,8/12,225,225,73.9,Equal-budget; 75 candidates x 3 real MATLAB; first feasible from JSON history
+CMA-ES,12/12,12/12,12/12,225,225,79.2,Stopped on candidate count; first_success_iter is generations; first feasible from JSON
+Direct PPO,11/12,11/12,11/12,225,225,54.0,T4 seed 44 infeasible; first feasible from JSON history
+Single-Agent Hermes,12/12,12/12,12/12,135–225,225,,n10 aligned: search 10 traj test 100; first_success=final_dev_feasible; 3 real MATLAB seeds; source optimizer_equal_mc_75_sah_n10

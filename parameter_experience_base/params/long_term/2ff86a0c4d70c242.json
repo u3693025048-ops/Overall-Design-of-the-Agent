@@ -1,0 +1,39 @@
+{
+  "memory_id": "2ff86a0c4d70c242",
+  "memory_type": "short_term",
+  "task_context": {
+    "task": "rl_episode_best",
+    "episode": 9
+  },
+  "parameters": {
+    "w1": 60.0,
+    "zeta1": 0.35,
+    "tao1": 0.25900938063859935,
+    "w2": 20.0,
+    "zeta2": 0.7446395721286534,
+    "tao2": 0.05,
+    "w3": 20.0,
+    "zeta3": 0.35,
+    "N_pn": 3.958473891019821,
+    "ny_lim": 16.0
+  },
+  "objectives": {
+    "hit_rate": 100.0,
+    "SEP": 4.94,
+    "peak_ny": 5.24,
+    "pitch_PM": 45.4,
+    "pitch_BW": 98.27,
+    "pitch_GM": 6.0,
+    "miss_distance": 4.94,
+    "peak_n": 5.24,
+    "peak_ny_mean": 5.24,
+    "peak_ny_max": 5.24,
+    "peak_n_max": 5.24
+  },
+  "fitness": 0.7827406593406593,
+  "timestamp": 1788413891.0194483,
+  "metadata": {
+    "episode": 9,
+    "reward": 3.093778541176471
+  }
+}

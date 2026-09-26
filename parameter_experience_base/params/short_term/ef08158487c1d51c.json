@@ -1,0 +1,46 @@
+{
+  "memory_id": "ef08158487c1d51c",
+  "memory_type": "short_term",
+  "task_context": {
+    "task": "guidance_rl_optimization",
+    "mode": "MODIFY_LAW",
+    "RUN_CASE": "T",
+    "SUB_IDX": 4,
+    "category": "T",
+    "subcases": "{'T': [4]}",
+    "prompt": "制导系统设计任务（三层架构系统输入示例 · 书籍知识库 RAG 增强版）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n任务工况（基于 monte_carlo_single.m T/G/AP/R 体系）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n运行工况：RUN_CASE='T'; SUB_IDX=4;\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n性能指标要求（Layer1 自动解析，Layer3 判断/反思智能体评估）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n命中率     >= 92%\nSEP脱靶量  <= 7 m\nPeakNy峰值法向过载 <= 20 g\nPM相位裕度 在 45°~ 70° 范围内\nBW带宽     在 20 ~ 85 rad/s 范围内\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n设计约束\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n1. 模板要求: 以 monte_carlo_single.m 为基础模板\n   - 保持 RL_PARAMS_BEGIN/END 注入块结构不变（RL优化器通过此块修改参数）\n   - rl_w1, rl_zeta1, rl_w2, rl_zeta2, rl_w3, rl_zeta3 对应驾驶仪参数\n   - rl_N_pn对应制导律参数\n   - base=struct(...) 中引用上述 rl_* 变量\n\n2. 不可大变动的部分（接口与变量可改）:\n   - 六自由度弹道模型（df/rk4f 函数）\n   - 驾驶仪设计函数（cg 函数）\n   - 气动力计算（af 函数）\n   - 控制律（cf 函数）\n\n3. 可选修改:\n   - 制导律（gf 函数）：可修改导引律结构，但接口不变\n   - 初始交战参数（base struct 中的目标/导弹参数）\n\n4.MATLAB代码要求：\n- 要符合matlab语法规范\n- 变量定义完整，且整体一致\n- 不出现未定义变量\n- 保持原有接口兼容\n- 对关键参数和新增项加注释\n\n5. 仿真输出格式要求（RL优化器解析依赖）:\n   - print_summary 格式: 命中率(miss<10m): X%  SEP: X.XXm\n   - 峰值法向过载行: 峰值法向过载: X.XX±Y.XXg\n   - 俯仰参数行: 俯仰PM: X.X±Y.Y°  BW: X.X±Y.X rad/s  GM: X.X±Y.X dB\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n★ 书籍知识库 RAG 约束（本版新增 · 设计全程强制执行）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n系统内置一部蒸馏书籍知识库，位于 knowledge_base/books/books/book010/，\n是《系统化飞控实战》010 本（600 章）的 30 张 RIA++ 卡归档。\n设计制导律/整定参数前，必须先按下面路由表对书籍做 RAG 检索，\n把检索到的【理论/公式/经验/红线】落地到设计决策，禁止凭空拍参数。\n\n◆ 知识域 → 卡片文件\n  A 比例导引 PN     → domain_A_PN.md         （含 APN / 预测制导融合）\n  B 最优制导        → domain_B_Optimal.md    （LQR/Riccati、N_opt=3 的由来）\n  C 终端制导        → domain_C_Terminal.md   （视场/落角/能量约束）\n  D 系统建模仿真    → domain_D_SystemModeling.md（稳定性/整定/蒙特卡洛/抗干扰）\n  E 飞行器轨迹控制  → domain_E_Trajectory.md （规划/跟踪/辨识/鲁棒）\n\n◆ 结构化数据资产（可跨文档引用编号）\n  assets/00_INDEX.md       资产总索引（按问题检索路由，先看它）\n  assets/01_theory.md      理论体系（30 卡【R】段）\n  assets/02_formulas.md    公式集 197 条（编号 F-xx-xx）\n  assets/03_heuristics.md  经验集 439 条（编号 H001…，注明出处卡号）\n  assets/04_parameters.md  工程参数速查表（9 大类：推荐值/调节方向/红线/出处）\n  assets/05_checklist.md   7 阶段设计与仿真检查清单（⚠️=作者踩过的坑）\n\n◆ 按设计问题检索路由表\n  选制导律类型 (PN/APN/OGL/滑模/预测)  → A-05/A-06 + B 域 + C 域\n  定导航比 N                         → A-02 + 04_parameters.md §1\n  稳定性红线 / 失稳机理              → A-02(N>2) + D-02(寄生回路)\n  脱靶量 / 蒙特卡洛验收              → A-04 + D-05 + B-05(样本量/分位数)\n  视线角速率符号 / 滤波              → A-03 + A-06(λ̇ 绝不差分)\n  驾驶仪参数整定 (w/ζ/τ)            → D-03 + 04_parameters.md\n  视场 / 框架角约束                  → C-01 / C-02\n  落角 / 攻角约束                    → C-03\n  抗干扰                             → D-06（全库经验最密）\n  交付前自检                         → 05_checklist.md（7 阶段）\n\n◆ 必须检索并遵守的书籍红线（校勘注记 + 超书发现）\n  1. N>2 是稳定性必要条件，N<2 发散（红线）；LQR 解析给出 N_opt=3，\n     但有延迟+噪声+机动时最优 N 呈 U 型，N≈6（不是 3）。\n  2. λ̇ 绝不能差分，必须滤波；λ̇ 滤波器存在最优时间常数 ≈20 ms。\n  3. 舵机延迟是头号杀手：τ≤50ms 无碍，τ=300ms 脱靶飙到 7.5 m。\n  4. 碰撞三角初始化：导弹初速必须落在碰撞三角上，否则\"零控\"不零。\n  5. 蒙特卡洛按分位数验收（P95），别只看均值（P95/均值≈3.4）。\n  6. APN 性能上限 = 目标加速度估计精度；误差>50% 反不如 PN，需置信度门限退化。\n  7. 限幅要\"双限\"（幅值 + 速率），留 20~30% 过载裕度。\n  8. 变导航比 / 多阶段切换不得阶跃，需 0.5~1.5 s 线性过渡区。\n\n◆ 检索工具与查询模板\n  多跳检索优先用 rag_query；单点用 rag_retrieve；读全文用 rag_expand。\n  示例：\n    rag_query(\"增强比例导引 APN 目标加速度补偿 N 选取 稳定性 红线 参数范围\")\n    rag_retrieve(query=\"navigation ratio N selection delay noise maneuver optimum\", top_k=5)\n    rag_expand(doc_id=\"file:.../domain_A_PN.md\")   # 分页读卡片全文\n\n◆ 落地要求（检索结果必须体现在）\n  ① 设计思路：law_type + 依据哪张卡 / 哪个公式号 F-xx / 经验号 Hxxx\n  ② 参数初值：引用 04_parameters.md 的推荐值与红线\n  ③ 稳定性说明：引用 N>2、带宽分离、裕度红线\n  ④ 验收标准：引用 B-05/D-05 的样本量与分位数\n  ⑤ 交付前：对照 05_checklist.md 逐项自检\n\n注意：\n若修改制导律则：仿真报告需要包括 - 制导律设计思路，修改后的制导律说明"
+  },
+  "parameters": {
+    "dp_w1": 35.0,
+    "dp_zeta1": 0.8,
+    "dp_tao1": 0.2,
+    "dp_w2": 44.0,
+    "dp_zeta2": 0.758,
+    "dp_tao2": 0.324,
+    "dp_w3": 42.0,
+    "dp_zeta3": 0.717,
+    "dp_N_pn": 4.5,
+    "dp_ny_lim": 20.0
+  },
+  "objectives": {
+    "hit_rate": 40.0,
+    "SEP": 74.35,
+    "peak_ny": 19.91,
+    "pitch_PM": 76.8,
+    "pitch_BW": 11.300000000000002,
+    "pitch_GM": 6.0,
+    "miss_distance": 74.35,
+    "peak_n": 19.91,
+    "peak_ny_mean": 19.91,
+    "peak_ny_max": 24.35,
+    "peak_n_max": 24.35
+  },
+  "fitness": 0.005441274054412741,
+  "timestamp": 1788425257.002738,
+  "metadata": {
+    "iteration": 5,
+    "total_episodes": 3
+  },
+  "model_filename": "ef08158487c1d51c_guidance_pn_fix_T4_1788424667.m",
+  "model_path": "parameter_experience_base\\models\\short_term\\ef08158487c1d51c_guidance_pn_fix_T4_1788424667.m"
+}

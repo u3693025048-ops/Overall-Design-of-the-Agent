@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>book010 导弹制导 · 蒸馏索引（30 卡）</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;background:#faf9f7;color:#2c2c2a;line-height:1.65;font-size:14px}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 20px 80px}
+
+/* ---------- header ---------- */
+h1{font-size:25px;font-weight:600;margin-bottom:6px;letter-spacing:-.2px}
+.sub{color:#5f5e5a;font-size:13px;margin-bottom:18px}
+.meta{display:flex;gap:26px;flex-wrap:wrap;background:#fff;border:1px solid #e5e3dc;border-radius:10px;padding:14px 18px;margin-bottom:8px}
+.meta div{font-size:12px;color:#5f5e5a}
+.meta b{font-weight:600;font-size:17px;display:block;color:#185fa5;font-variant-numeric:tabular-nums}
+.bar{height:7px;background:#eceae4;border-radius:4px;overflow:hidden;margin:14px 0 6px}
+.bar i{display:block;height:100%;background:#0f6e56;border-radius:4px;transition:width .4s}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:4px;margin:26px 0 0;border-bottom:1px solid #e5e3dc}
+.tab{padding:9px 18px;font-size:13.5px;color:#5f5e5a;cursor:pointer;border:none;background:none;
+     font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s}
+.tab:hover{color:#2c2c2a}
+.tab.on{color:#185fa5;border-bottom-color:#185fa5;font-weight:500}
+.pane{display:none;padding-top:22px}
+.pane.on{display:block}
+
+/* ---------- domain board ---------- */
+.doms{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+.dom{background:#fff;border:1px solid #e5e3dc;border-radius:10px;padding:14px 16px;cursor:pointer;
+     border-top:3px solid var(--c,#888);transition:.15s}
+.dom:hover{box-shadow:0 2px 10px rgba(0,0,0,.06);transform:translateY(-1px)}
+.dom .dt{font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:400;background:#e1f5ee;color:#0f6e56;white-space:nowrap}
+.dom .dd{font-size:12px;color:#5f5e5a;line-height:1.7}
+.dom .courses{font-size:11.5px;color:#888780;margin-top:8px;line-height:1.65}
+
+/* ---------- card list ---------- */
+.dsec{margin-bottom:8px;background:#fff;border:1px solid #e5e3dc;border-radius:10px;overflow:hidden}
+.dhead{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none;background:#fcfbf9}
+.dhead:hover{background:#f7f5f0}
+.dhead .dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.dhead .nm{font-weight:600;font-size:14px}
+.dhead .cnt{font-size:12px;color:#888780}
+.dhead .arw{margin-left:auto;color:#888780;font-size:12px;transition:.2s}
+.dsec.open .arw{transform:rotate(90deg)}
+.dbody{display:none;border-top:1px solid #f0eee8}
+.dsec.open .dbody{display:block}
+.dmeta{padding:10px 16px;font-size:12px;color:#888780;border-bottom:1px solid #f5f3ee;background:#fdfcfa;white-space:pre-wrap;line-height:1.6}
+
+.card{border-bottom:1px solid #f5f3ee}
+.card:last-child{border-bottom:none}
+.chead{padding:12px 16px;cursor:pointer;display:flex;gap:12px;align-items:flex-start}
+.chead:hover{background:#faf9f7}
+.cno{font-size:12px;color:#888780;font-variant-numeric:tabular-nums;min-width:44px;padding-top:1px}
+.ctitle{font-weight:500;font-size:14px;flex:1}
+.csum{font-size:12.5px;color:#5f5e5a;margin-top:4px;font-weight:400;line-height:1.6}
+.cmeta{font-size:11.5px;color:#a3a19a;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap}
+.cfull{display:none;padding:4px 16px 18px 72px;border-top:1px dashed #eceae4;background:#fdfdfc}
+.card.open .cfull{display:block}
+.card.open .chead{background:#f7f5f0}
+
+/* card body typography */
+.cfull h4{font-size:13.5px;font-weight:600;margin:16px 0 7px;color:#185fa5}
+.cfull h5{font-size:13px;font-weight:600;margin:14px 0 6px;color:#444441}
+.cfull p{margin:7px 0;font-size:13.5px;line-height:1.78}
+.cfull li{margin:5px 0 5px 20px;font-size:13.5px;line-height:1.72}
+.cfull li.num{list-style:decimal}
+.cfull ul li{list-style:disc}
+.cfull blockquote{border-left:3px solid #d8d5cc;padding:2px 0 2px 12px;margin:9px 0;color:#5f5e5a;font-size:13px}
+.cfull code{background:#f1efe8;padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.cfull pre{background:#f7f5f0;border:1px solid #e5e3dc;border-radius:8px;padding:11px 13px;margin:9px 0;overflow-x:auto}
+.cfull pre code{background:none;padding:0;font-size:12.5px;line-height:1.6}
+.cfull hr{border:none;border-top:1px solid #eceae4;margin:14px 0}
+.cfull table.ct{width:100%;border-collapse:collapse;margin:10px 0;font-size:12.5px;background:#fff}
+.cfull table.ct th{background:#f5f3ee;text-align:left;padding:7px 10px;font-weight:600;border:1px solid #e5e3dc;color:#444441}
+.cfull table.ct td{padding:7px 10px;border:1px solid #eceae4;vertical-align:top;line-height:1.6}
+.eq{margin:11px 0;padding:9px 12px;background:#fbfaf7;border-left:2px solid #d8d5cc;overflow-x:auto;font-size:14px;text-align:center}
+.il{font-family:ui-monospace,Menlo,monospace;background:#f1efe8;padding:0 4px;border-radius:3px;white-space:nowrap}
+
+/* ---------- cheat sheet ---------- */
+.chgrid{display:grid;gap:16px}
+.chbox{background:#fff;border:1px solid #e5e3dc;border-radius:10px;overflow:hidden;border-left:3px solid var(--c)}
+.chbox .bt{padding:11px 16px;font-weight:600;font-size:14px;background:#fcfbf9;border-bottom:1px solid #f0eee8}
+table.kt{width:100%;border-collapse:collapse;font-size:13px}
+table.kt td{padding:9px 14px;border-bottom:1px solid #f5f3ee;vertical-align:top}
+table.kt tr:last-child td{border-bottom:none}
+table.kt td.f{width:40%;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#185fa5;word-break:break-word}
+table.kt td.m{color:#5f5e5a}
+table.kt td.r{width:52px;text-align:right;color:#a3a19a;font-size:11.5px;white-space:nowrap}
+.tips{padding:6px 14px 12px}
+.tip{padding:8px 0;border-top:1px solid #f5f3ee;font-size:13px;line-height:1.72}
+.tip b{color:#993c1d;font-weight:600;margin-right:8px}
+.tip .src{color:#a3a19a;font-size:11.5px}
+
+.note{background:#fff;border:1px solid #e5e3dc;border-left:3px solid #185fa5;border-radius:8px;
+      padding:11px 15px;font-size:13px;color:#444441;margin:12px 0;line-height:1.7}
+
+/* ---------- controls ---------- */
+.ctrl{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+input[type=text],select{padding:8px 12px;border:1px solid #d8d5cc;border-radius:8px;font-size:13px;
+                        font-family:inherit;background:#fff;color:#2c2c2a}
+input[type=text]{flex:1;min-width:220px}
+input[type=text]:focus,select:focus{outline:none;border-color:#85b7eb}
+.cnt{font-size:12px;color:#888780;white-space:nowrap}
+
+/* ---------- toc ---------- */
+details.tc{background:#fff;border:1px solid #e5e3dc;border-radius:10px;margin-bottom:8px}
+details.tc>summary{padding:11px 16px;cursor:pointer;font-weight:500;font-size:13.5px;list-style:none;
+                   display:flex;justify-content:space-between;align-items:center;gap:12px}
+details.tc>summary::-webkit-details-marker{display:none}
+details.tc>summary:hover{background:#faf9f7}
+details.tc>summary .n{font-size:12px;color:#888780;font-weight:400;white-space:nowrap}
+.chs{padding:0 16px 12px}
+.ch{display:flex;gap:12px;padding:7px 0;border-top:1px solid #f5f3ee;font-size:13px;align-items:baseline}
+.ch .no{color:#888780;min-width:26px;font-variant-numeric:tabular-nums}
+.ch .tt{min-width:140px;font-weight:500}
+.ch .ds{color:#5f5e5a;flex:1}
+.ch .tg{display:flex;gap:5px;flex-wrap:wrap}
+.ch .tg span{font-size:11px;background:#f1efe8;color:#5f5e5a;padding:1px 7px;border-radius:4px}
+
+a{color:#185fa5;text-decoration:none}
+a:hover{text-decoration:underline}
+code{background:#f1efe8;padding:1px 6px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.footer{margin-top:42px;padding-top:16px;border-top:1px solid #e5e3dc;font-size:12px;color:#888780;line-height:1.8}
+@media(max-width:720px){
+  .cfull{padding-left:20px}
+  .ch{flex-wrap:wrap}
+  .ch .ds{flex-basis:100%}
+}
+</style>
+<script>
+window.MathJax={tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']]},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+  svg:{fontCache:'global'}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+</head>
+<body>
+<div class="wrap">
+
+<h1>《系统化飞控实战》010 · 导弹制导蒸馏索引</h1>
+<p class="sub">20 门课 × 30 章 = 600 章（193 万字）　→　30 张 RIA++ 技能卡（5 大知识域 × 6 张）</p>
+
+<div class="meta">
+  <div>卡片总数<b id="m-cards">–</b></div>
+  <div>知识域<b id="m-doms">–</b></div>
+  <div>覆盖章节<b>600</b></div>
+  <div>卡片正文<b id="m-chars">–</b></div>
+  <div>源书规模<b>193 万字</b></div>
+</div>
+<div class="bar"><i id="m-bar" style="width:0"></i></div>
+<p class="sub" style="margin-top:6px">蒸馏完成 · 2026-09-01</p>
+
+<div class="tabs">
+  <button class="tab on" data-t="cards">卡片浏览</button>
+  <button class="tab" data-t="cheat">公式 / 经验速查</button>
+  <button class="tab" data-t="map">600 章知识地图</button>
+  <button class="tab" data-t="about">说明</button>
+</div>
+
+<!-- ================= 卡片浏览 ================= -->
+<div class="pane on" id="p-cards">
+  <div class="ctrl">
+    <input type="text" id="cq" placeholder="搜索卡片标题 / 正文关键词（如：导航比、Riccati、视场、ADRC、辨识）…">
+    <select id="cf"><option value="">全部知识域</option></select>
+    <button class="tab" id="expandAll" style="border:1px solid #d8d5cc;border-radius:8px;padding:8px 14px">展开全部</button>
+    <span class="cnt" id="ccnt"></span>
+  </div>
+  <div id="clist"></div>
+</div>
+
+<!-- ================= 速查 ================= -->
+<div class="pane" id="p-cheat">
+  <div class="ctrl">
+    <input type="text" id="sq" placeholder="搜索公式 / 经验…">
+    <select id="sf"><option value="">全部知识域</option></select>
+    <span class="cnt" id="scnt"></span>
+  </div>
+  <div class="chgrid" id="slist"></div>
+</div>
+
+<!-- ================= 知识地图 ================= -->
+<div class="pane" id="p-map">
+  <div class="ctrl">
+    <input type="text" id="q" placeholder="搜索章节标题 / 摘要 / 标签…">
+    <select id="fdom"><option value="">全部知识域</option></select>
+    <select id="fcourse"><option value="">全部课程</option></select>
+    <span class="cnt" id="cnt"></span>
+  </div>
+  <div id="toc"></div>
+</div>
+
+<!-- ================= 说明 ================= -->
+<div class="pane" id="p-about">
+  <div class="note"><b>蒸馏规格</b>：按书粒度，5 大知识域 × 6 张 RIA++ 卡 = 30 张。每张卡精读该域约 50~70 章原文后提炼。</div>
+  <div class="note"><b>RIA++ 三段式</b>：<b>R 理论</b>（是什么、为什么）→ <b>I 公式</b>（数学表达、量纲、参数范围、推导要点）→ <b>A++ 经验</b>（工程要点、参数整定、避坑指南，带原文实测数据）。末段<b>关联</b>给出与「多智能体驱动的制导系统 MBSE 敏捷设计」的对接点。</div>
+  <div class="note"><b>使用建议</b>：先用「公式 / 经验速查」建立骨架认知，再回到「卡片浏览」按域精读；需要追原文时用「600 章知识地图」定位章节。</div>
+  <div class="note"><b>文件导航</b>：<br>
+    · <code>index.html</code> — 本页（交互导航）<br>
+    · <code>README.md</code> — Markdown 主索引<br>
+    · <code>domain_A_PN.md</code> / <code>domain_B_Optimal.md</code> / <code>domain_C_Terminal.md</code> / <code>domain_D_SystemModeling.md</code> / <code>domain_E_Trajectory.md</code> — 五域卡片原文<br>
+    · <code>_gen_index.py</code> + <code>_template.html</code> — 索引生成脚本（新增/修改卡片后重跑即可）
+  </div>
+</div>
+
+<div class="footer">
+  源书 <code>010-系统化飞控实战.zip</code>　·　结构化目录 <a href="../book010_toc.json">book010_toc.json</a>　·　公式由 MathJax 渲染，首次加载需联网
+</div>
+
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+/* ---------- helpers ---------- */
+const KEYS=['A','B','C','D','E'];
+const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function stripLatex(s){
+  return String(s||'').replace(/\$[^$]*\$/g,'').replace(/\\\\[a-zA-Z]+/g,' ')
+    .replace(/[{}^_\\]/g,'').replace(/[*#>`|]/g,'').replace(/\s+/g,' ').trim();
+}
+function summary(card,dom){
+  const t=stripLatex(card.r)||stripLatex(card.title);
+  return t.length>135?t.slice(0,135)+'…':t;
+}
+
+/* ---------- header ---------- */
+(function(){
+  const n=DATA.totalCards;
+  let ch=0; KEYS.forEach(k=>{ if(DATA.domains[k]) DATA.domains[k].cards.forEach(c=>ch+=c.chars); });
+  document.getElementById('m-cards').textContent=n+' / 30';
+  document.getElementById('m-doms').textContent=KEYS.filter(k=>DATA.domains[k]).length+' / 5';
+  document.getElementById('m-chars').textContent=(ch/10000).toFixed(1)+' 万字';
+  document.getElementById('m-bar').style.width=Math.round(n/30*100)+'%';
+})();
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab[data-t]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.tab[data-t]').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    document.getElementById('p-'+b.dataset.t).classList.add('on');
+    if(b.dataset.t==='cheat') renderCheat();
+    if(b.dataset.t==='map') renderToc();
+  };
+});
+
+/* ---------- 卡片浏览 ---------- */
+const clist=document.getElementById('clist');
+const cf=document.getElementById('cf');
+KEYS.forEach(k=>{ if(DATA.domains[k]) cf.insertAdjacentHTML('beforeend',
+  `<option value="${k}">${k}. ${esc(DATA.domains[k].name)}</option>`); });
+
+function renderCards(){
+  const q=document.getElementById('cq').value.trim().toLowerCase();
+  const fd=cf.value;
+  let hit=0, html='';
+  KEYS.forEach(k=>{
+    const d=DATA.domains[k]; if(!d) return;
+    if(fd && fd!==k) return;
+    const cs=d.cards.filter(c=>{
+      if(!q) return true;
+      const hay=(c.title+' '+c.r+' '+c.i+' '+c.a+' '+c.link+' '+c.src).toLowerCase();
+      return hay.includes(q);
+    });
+    hit+=cs.length;
+    if(!cs.length) return;
+    const autoOpen = !!q && cs.length<=8;
+    html+=`<div class="dsec ${autoOpen?'open':''}" style="--c:${d.color}">
+      <div class="dhead"><span class="dot"></span><span class="nm">${k}. ${esc(d.name)}</span>
+      <span class="cnt">${cs.length} 张卡</span><span class="arw">▶</span></div>
+      <div class="dbody">
+        <div class="dmeta">${esc(stripLatex(d.head).replace(/> ?/g,'').replace(/\n+/g,'\n'))}</div>`;
+    cs.forEach(c=>{
+      html+=`<div class="card"><div class="chead">
+        <span class="cno">${esc(c.title.split('：')[0])}</span>
+        <div style="flex:1">
+          <div class="ctitle">${esc(c.title.replace(/^卡\s*\d+[：:]?\s*/,'').replace(/^《|》$/g,''))}</div>
+          <div class="csum">${esc(summary(c,k))}</div>
+          <div class="cmeta"><span>${c.chars} 字</span>${c.src?`<span>来源 ${esc(c.src)}</span>`:''}</div>
+        </div></div>
+        <div class="cfull">${c.html}</div></div>`;
+    });
+    html+='</div></div>';
+  });
+  clist.innerHTML = html || '<div class="note">没有匹配的卡片</div>';
+  document.getElementById('ccnt').textContent=`匹配 ${hit} / ${DATA.totalCards} 张卡`;
+  bind();
+}
+function bind(){
+  clist.querySelectorAll('.dhead').forEach(h=>h.onclick=e=>{
+    e.stopPropagation(); h.parentElement.classList.toggle('open');
+  });
+  clist.querySelectorAll('.chead').forEach(h=>h.onclick=e=>{
+    e.stopPropagation();
+    const card=h.parentElement, open=card.classList.toggle('open');
+    if(open && window.MathJax && MathJax.typesetPromise){
+      MathJax.typesetPromise([card.querySelector('.cfull')]).catch(()=>{});
+    }
+  });
+}
+document.getElementById('cq').addEventListener('input',renderCards);
+cf.addEventListener('change',renderCards);
+document.getElementById('expandAll').onclick=function(){
+  const on=clist.querySelectorAll('.dsec.open').length < clist.querySelectorAll('.dsec').length;
+  clist.querySelectorAll('.dsec').forEach(d=>d.classList.toggle('open',on));
+  this.textContent=on?'收起全部':'展开全部';
+};
+renderCards();
+
+/* ---------- 速查 ---------- */
+const slist=document.getElementById('slist'), sf=document.getElementById('sf');
+KEYS.forEach(k=>{ if(DATA.domains[k]) sf.insertAdjacentHTML('beforeend',
+  `<option value="${k}">${k}. ${esc(DATA.domains[k].name)}</option>`); });
+let cheatDone=false;
+function renderCheat(){
+  const q=document.getElementById('sq').value.trim().toLowerCase();
+  const fd=sf.value; let h='';
+  KEYS.forEach(k=>{
+    const d=DATA.domains[k]; if(!d||!d.cheat) return;
+    if(fd && fd!==k) return;
+    const F=d.cheat.formulas.filter(x=>!q||(x[0]+x[1]).toLowerCase().includes(q));
+    const T=d.cheat.tips.filter(x=>!q||(x[0]+x[1]).toLowerCase().includes(q));
+    if(!F.length&&!T.length) return;
+    h+=`<div class="chbox" style="--c:${d.color}"><div class="bt">${k}. ${esc(d.name)}</div>`;
+    if(F.length){
+      h+='<table class="kt">';
+      F.forEach(([f,m,r])=>{ h+=`<tr><td class="f">\\(${f}\\)</td><td class="m">${m}</td><td class="r">${esc(r||'')}</td></tr>`; });
+      h+='</table>';
+    }
+    if(T.length){
+      h+='<div class="tips">';
+      T.forEach(([t,b,r])=>{ h+=`<div class="tip"><b>${esc(t)}</b>${b}<span class="src">　${esc(r||'')}</span></div>`; });
+      h+='</div>';
+    }
+    h+='</div>';
+  });
+  slist.innerHTML = h||'<div class="note">没有匹配项</div>';
+  if(window.MathJax&&MathJax.typesetPromise) MathJax.typesetPromise([slist]).catch(()=>{});
+}
+document.getElementById('sq').addEventListener('input',renderCheat);
+sf.addEventListener('change',renderCheat);
+
+/* ---------- 知识地图 ---------- */
+const fdom=document.getElementById('fdom'), fcourse=document.getElementById('fcourse');
+KEYS.forEach(k=>{ if(DATA.domains[k]) fdom.insertAdjacentHTML('beforeend',
+  `<option value="${k}">${k}. ${esc(DATA.domains[k].name)}</option>`); });
+const allCourses=[...new Set(DATA.chapters.map(c=>c.course))].sort();
+allCourses.forEach(c=>fcourse.insertAdjacentHTML('beforeend',`<option value="${esc(c)}">${esc(c)}</option>`));
+let tocDone=false;
+function renderToc(){
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  const fd=fdom.value, fc=fcourse.value;
+  const list=DATA.chapters.filter(c=>{
+    if(fd&&c.dom!==fd) return false;
+    if(fc&&c.course!==fc) return false;
+    if(!q) return true;
+    return (c.title+c.desc+c.tags.join('')+c.course).toLowerCase().includes(q);
+  });
+  document.getElementById('cnt').textContent=`匹配 ${list.length} / ${DATA.chapters.length} 章`;
+  const g={}; list.forEach(c=>(g[c.course]=g[c.course]||[]).push(c));
+  if(!list.length){ document.getElementById('toc').innerHTML='<div class="note">没有匹配的章节</div>'; return; }
+  const autoOpen=list.length<=60; let h='';
+  Object.keys(g).sort().forEach(cn=>{
+    h+=`<details class="tc" ${autoOpen?'open':''}><summary><span>${esc(cn)}</span><span class="n">${g[cn].length} 章</span></summary><div class="chs">`;
+    g[cn].forEach(c=>{
+      h+=`<div class="ch"><span class="no">${esc(c.no)}</span><span class="tt">${esc(c.title)}</span>
+          <span class="ds">${esc(c.desc)}</span>
+          <span class="tg">${c.tags.map(t=>`<span>${esc(t)}</span>`).join('')}</span></div>`;
+    });
+    h+='</div></details>';
+  });
+  document.getElementById('toc').innerHTML=h;
+}
+document.getElementById('q').addEventListener('input',renderToc);
+fdom.addEventListener('change',()=>{
+  const fd=fdom.value;
+  const cs=[...new Set(DATA.chapters.filter(c=>!fd||c.dom===fd).map(c=>c.course))].sort();
+  fcourse.innerHTML='<option value="">全部课程</option>'+cs.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  renderToc();
+});
+fcourse.addEventListener('change',renderToc);
+</script>
+</body>
+</html>

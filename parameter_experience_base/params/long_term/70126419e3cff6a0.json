@@ -1,0 +1,38 @@
+{
+  "memory_id": "70126419e3cff6a0",
+  "memory_type": "short_term",
+  "task_context": {
+    "prompt": "制导系统设计任务（三层架构系统输入示例 · 书籍知识库 RAG 增强版）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n任务工况（基于 monte_carlo_single.m T/G/AP/R 体系）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n运行工况：RUN_CASE='T'; SUB_IDX=1;\n\n\n━━━━━━━━━━"
+  },
+  "parameters": {
+    "dp_w1": 40.50841722357155,
+    "dp_zeta1": 0.5644022934961966,
+    "dp_tao1": 0.08446449994389947,
+    "dp_w2": 35.815478566340055,
+    "dp_zeta2": 0.7,
+    "dp_tao2": 0.1,
+    "dp_w3": 40.0,
+    "dp_zeta3": 0.7,
+    "dp_N_pn": 4.5,
+    "dp_ny_lim": 20.0
+  },
+  "objectives": {
+    "mc_seed_count": 3.0,
+    "hit_rate": 100.0,
+    "SEP": 4.96,
+    "miss_distance": 4.96,
+    "peak_ny": 5.71,
+    "peak_n": 5.71,
+    "peak_ny_max": 5.71,
+    "peak_n_max": 5.71,
+    "pitch_PM": 68.9,
+    "pitch_PM_min": 68.9,
+    "pitch_PM_max": 68.9,
+    "pitch_BW": 83.36,
+    "pitch_BW_min": 83.36,
+    "pitch_BW_max": 83.36
+  },
+  "fitness": 0.97024,
+  "timestamp": 1788414534.7153025,
+  "metadata": {}
+}

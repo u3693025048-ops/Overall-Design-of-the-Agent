@@ -1,0 +1,12 @@
+# Web 管理端依赖（知识库管理 UI）
+# 与根 requirements.txt 的 RAG 部分配合；fastapi/uvicorn 已可在多数环境使用。
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9
+
+# 混合检索（BM25 互补信号）与元数据结构校验
+rank_bm25>=0.2.1
+jsonschema>=4.0
+
+# 配置读取（run_web.py 启动时 import yaml，缺失会直接报 ModuleNotFoundError）
+pyyaml>=6.0

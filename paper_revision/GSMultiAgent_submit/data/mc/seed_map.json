@@ -1,0 +1,373 @@
+{
+  "n_runs": 100,
+  "scenarios": {
+    "T1": {
+      "42": {
+        "dev": [
+          {
+            "seed": 4201,
+            "path": "data/mc/T1/seed_4201_dev.mat"
+          },
+          {
+            "seed": 4202,
+            "path": "data/mc/T1/seed_4202_dev.mat"
+          },
+          {
+            "seed": 4203,
+            "path": "data/mc/T1/seed_4203_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4204,
+            "path": "data/mc/T1/seed_4204_test.mat"
+          },
+          {
+            "seed": 4205,
+            "path": "data/mc/T1/seed_4205_test.mat"
+          },
+          {
+            "seed": 4206,
+            "path": "data/mc/T1/seed_4206_test.mat"
+          }
+        ]
+      },
+      "43": {
+        "dev": [
+          {
+            "seed": 4301,
+            "path": "data/mc/T1/seed_4301_dev.mat"
+          },
+          {
+            "seed": 4302,
+            "path": "data/mc/T1/seed_4302_dev.mat"
+          },
+          {
+            "seed": 4303,
+            "path": "data/mc/T1/seed_4303_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4304,
+            "path": "data/mc/T1/seed_4304_test.mat"
+          },
+          {
+            "seed": 4305,
+            "path": "data/mc/T1/seed_4305_test.mat"
+          },
+          {
+            "seed": 4306,
+            "path": "data/mc/T1/seed_4306_test.mat"
+          }
+        ]
+      },
+      "44": {
+        "dev": [
+          {
+            "seed": 4401,
+            "path": "data/mc/T1/seed_4401_dev.mat"
+          },
+          {
+            "seed": 4402,
+            "path": "data/mc/T1/seed_4402_dev.mat"
+          },
+          {
+            "seed": 4403,
+            "path": "data/mc/T1/seed_4403_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4404,
+            "path": "data/mc/T1/seed_4404_test.mat"
+          },
+          {
+            "seed": 4405,
+            "path": "data/mc/T1/seed_4405_test.mat"
+          },
+          {
+            "seed": 4406,
+            "path": "data/mc/T1/seed_4406_test.mat"
+          }
+        ]
+      }
+    },
+    "T2": {
+      "42": {
+        "dev": [
+          {
+            "seed": 4201,
+            "path": "data/mc/T2/seed_4201_dev.mat"
+          },
+          {
+            "seed": 4202,
+            "path": "data/mc/T2/seed_4202_dev.mat"
+          },
+          {
+            "seed": 4203,
+            "path": "data/mc/T2/seed_4203_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4204,
+            "path": "data/mc/T2/seed_4204_test.mat"
+          },
+          {
+            "seed": 4205,
+            "path": "data/mc/T2/seed_4205_test.mat"
+          },
+          {
+            "seed": 4206,
+            "path": "data/mc/T2/seed_4206_test.mat"
+          }
+        ]
+      },
+      "43": {
+        "dev": [
+          {
+            "seed": 4301,
+            "path": "data/mc/T2/seed_4301_dev.mat"
+          },
+          {
+            "seed": 4302,
+            "path": "data/mc/T2/seed_4302_dev.mat"
+          },
+          {
+            "seed": 4303,
+            "path": "data/mc/T2/seed_4303_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4304,
+            "path": "data/mc/T2/seed_4304_test.mat"
+          },
+          {
+            "seed": 4305,
+            "path": "data/mc/T2/seed_4305_test.mat"
+          },
+          {
+            "seed": 4306,
+            "path": "data/mc/T2/seed_4306_test.mat"
+          }
+        ]
+      },
+      "44": {
+        "dev": [
+          {
+            "seed": 4401,
+            "path": "data/mc/T2/seed_4401_dev.mat"
+          },
+          {
+            "seed": 4402,
+            "path": "data/mc/T2/seed_4402_dev.mat"
+          },
+          {
+            "seed": 4403,
+            "path": "data/mc/T2/seed_4403_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4404,
+            "path": "data/mc/T2/seed_4404_test.mat"
+          },
+          {
+            "seed": 4405,
+            "path": "data/mc/T2/seed_4405_test.mat"
+          },
+          {
+            "seed": 4406,
+            "path": "data/mc/T2/seed_4406_test.mat"
+          }
+        ]
+      }
+    },
+    "T3": {
+      "42": {
+        "dev": [
+          {
+            "seed": 4201,
+            "path": "data/mc/T3/seed_4201_dev.mat"
+          },
+          {
+            "seed": 4202,
+            "path": "data/mc/T3/seed_4202_dev.mat"
+          },
+          {
+            "seed": 4203,
+            "path": "data/mc/T3/seed_4203_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4204,
+            "path": "data/mc/T3/seed_4204_test.mat"
+          },
+          {
+            "seed": 4205,
+            "path": "data/mc/T3/seed_4205_test.mat"
+          },
+          {
+            "seed": 4206,
+            "path": "data/mc/T3/seed_4206_test.mat"
+          }
+        ]
+      },
+      "43": {
+        "dev": [
+          {
+            "seed": 4301,
+            "path": "data/mc/T3/seed_4301_dev.mat"
+          },
+          {
+            "seed": 4302,
+            "path": "data/mc/T3/seed_4302_dev.mat"
+          },
+          {
+            "seed": 4303,
+            "path": "data/mc/T3/seed_4303_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4304,
+            "path": "data/mc/T3/seed_4304_test.mat"
+          },
+          {
+            "seed": 4305,
+            "path": "data/mc/T3/seed_4305_test.mat"
+          },
+          {
+            "seed": 4306,
+            "path": "data/mc/T3/seed_4306_test.mat"
+          }
+        ]
+      },
+      "44": {
+        "dev": [
+          {
+            "seed": 4401,
+            "path": "data/mc/T3/seed_4401_dev.mat"
+          },
+          {
+            "seed": 4402,
+            "path": "data/mc/T3/seed_4402_dev.mat"
+          },
+          {
+            "seed": 4403,
+            "path": "data/mc/T3/seed_4403_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4404,
+            "path": "data/mc/T3/seed_4404_test.mat"
+          },
+          {
+            "seed": 4405,
+            "path": "data/mc/T3/seed_4405_test.mat"
+          },
+          {
+            "seed": 4406,
+            "path": "data/mc/T3/seed_4406_test.mat"
+          }
+        ]
+      }
+    },
+    "T4": {
+      "42": {
+        "dev": [
+          {
+            "seed": 4201,
+            "path": "data/mc/T4/seed_4201_dev.mat"
+          },
+          {
+            "seed": 4202,
+            "path": "data/mc/T4/seed_4202_dev.mat"
+          },
+          {
+            "seed": 4203,
+            "path": "data/mc/T4/seed_4203_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4204,
+            "path": "data/mc/T4/seed_4204_test.mat"
+          },
+          {
+            "seed": 4205,
+            "path": "data/mc/T4/seed_4205_test.mat"
+          },
+          {
+            "seed": 4206,
+            "path": "data/mc/T4/seed_4206_test.mat"
+          }
+        ]
+      },
+      "43": {
+        "dev": [
+          {
+            "seed": 4301,
+            "path": "data/mc/T4/seed_4301_dev.mat"
+          },
+          {
+            "seed": 4302,
+            "path": "data/mc/T4/seed_4302_dev.mat"
+          },
+          {
+            "seed": 4303,
+            "path": "data/mc/T4/seed_4303_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4304,
+            "path": "data/mc/T4/seed_4304_test.mat"
+          },
+          {
+            "seed": 4305,
+            "path": "data/mc/T4/seed_4305_test.mat"
+          },
+          {
+            "seed": 4306,
+            "path": "data/mc/T4/seed_4306_test.mat"
+          }
+        ]
+      },
+      "44": {
+        "dev": [
+          {
+            "seed": 4401,
+            "path": "data/mc/T4/seed_4401_dev.mat"
+          },
+          {
+            "seed": 4402,
+            "path": "data/mc/T4/seed_4402_dev.mat"
+          },
+          {
+            "seed": 4403,
+            "path": "data/mc/T4/seed_4403_dev.mat"
+          }
+        ],
+        "test": [
+          {
+            "seed": 4404,
+            "path": "data/mc/T4/seed_4404_test.mat"
+          },
+          {
+            "seed": 4405,
+            "path": "data/mc/T4/seed_4405_test.mat"
+          },
+          {
+            "seed": 4406,
+            "path": "data/mc/T4/seed_4406_test.mat"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,1107 @@
+{
+  "short_term": [
+    {
+      "memory_id": "ef08158487c1d51c",
+      "memory_type": "short_term",
+      "task_context": {
+        "task": "guidance_rl_optimization",
+        "mode": "MODIFY_LAW",
+        "RUN_CASE": "T",
+        "SUB_IDX": 4,
+        "category": "T",
+        "subcases": "{'T': [4]}",
+        "prompt": "制导系统设计任务（三层架构系统输入示例 · 书籍知识库 RAG 增强版）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n任务工况（基于 monte_carlo_single.m T/G/AP/R 体系）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n运行工况：RUN_CASE='T'; SUB_IDX=4;\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n性能指标要求（Layer1 自动解析，Layer3 判断/反思智能体评估）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n命中率     >= 92%\nSEP脱靶量  <= 7 m\nPeakNy峰值法向过载 <= 20 g\nPM相位裕度 在 45°~ 70° 范围内\nBW带宽     在 20 ~ 85 rad/s 范围内\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n设计约束\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n1. 模板要求: 以 monte_carlo_single.m 为基础模板\n   - 保持 RL_PARAMS_BEGIN/END 注入块结构不变（RL优化器通过此块修改参数）\n   - rl_w1, rl_zeta1, rl_w2, rl_zeta2, rl_w3, rl_zeta3 对应驾驶仪参数\n   - rl_N_pn对应制导律参数\n   - base=struct(...) 中引用上述 rl_* 变量\n\n2. 不可大变动的部分（接口与变量可改）:\n   - 六自由度弹道模型（df/rk4f 函数）\n   - 驾驶仪设计函数（cg 函数）\n   - 气动力计算（af 函数）\n   - 控制律（cf 函数）\n\n3. 可选修改:\n   - 制导律（gf 函数）：可修改导引律结构，但接口不变\n   - 初始交战参数（base struct 中的目标/导弹参数）\n\n4.MATLAB代码要求：\n- 要符合matlab语法规范\n- 变量定义完整，且整体一致\n- 不出现未定义变量\n- 保持原有接口兼容\n- 对关键参数和新增项加注释\n\n5. 仿真输出格式要求（RL优化器解析依赖）:\n   - print_summary 格式: 命中率(miss<10m): X%  SEP: X.XXm\n   - 峰值法向过载行: 峰值法向过载: X.XX±Y.XXg\n   - 俯仰参数行: 俯仰PM: X.X±Y.Y°  BW: X.X±Y.X rad/s  GM: X.X±Y.X dB\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n★ 书籍知识库 RAG 约束（本版新增 · 设计全程强制执行）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n系统内置一部蒸馏书籍知识库，位于 knowledge_base/books/books/book010/，\n是《系统化飞控实战》010 本（600 章）的 30 张 RIA++ 卡归档。\n设计制导律/整定参数前，必须先按下面路由表对书籍做 RAG 检索，\n把检索到的【理论/公式/经验/红线】落地到设计决策，禁止凭空拍参数。\n\n◆ 知识域 → 卡片文件\n  A 比例导引 PN     → domain_A_PN.md         （含 APN / 预测制导融合）\n  B 最优制导        → domain_B_Optimal.md    （LQR/Riccati、N_opt=3 的由来）\n  C 终端制导        → domain_C_Terminal.md   （视场/落角/能量约束）\n  D 系统建模仿真    → domain_D_SystemModeling.md（稳定性/整定/蒙特卡洛/抗干扰）\n  E 飞行器轨迹控制  → domain_E_Trajectory.md （规划/跟踪/辨识/鲁棒）\n\n◆ 结构化数据资产（可跨文档引用编号）\n  assets/00_INDEX.md       资产总索引（按问题检索路由，先看它）\n  assets/01_theory.md      理论体系（30 卡【R】段）\n  assets/02_formulas.md    公式集 197 条（编号 F-xx-xx）\n  assets/03_heuristics.md  经验集 439 条（编号 H001…，注明出处卡号）\n  assets/04_parameters.md  工程参数速查表（9 大类：推荐值/调节方向/红线/出处）\n  assets/05_checklist.md   7 阶段设计与仿真检查清单（⚠️=作者踩过的坑）\n\n◆ 按设计问题检索路由表\n  选制导律类型 (PN/APN/OGL/滑模/预测)  → A-05/A-06 + B 域 + C 域\n  定导航比 N                         → A-02 + 04_parameters.md §1\n  稳定性红线 / 失稳机理              → A-02(N>2) + D-02(寄生回路)\n  脱靶量 / 蒙特卡洛验收              → A-04 + D-05 + B-05(样本量/分位数)\n  视线角速率符号 / 滤波              → A-03 + A-06(λ̇ 绝不差分)\n  驾驶仪参数整定 (w/ζ/τ)            → D-03 + 04_parameters.md\n  视场 / 框架角约束                  → C-01 / C-02\n  落角 / 攻角约束                    → C-03\n  抗干扰                             → D-06（全库经验最密）\n  交付前自检                         → 05_checklist.md（7 阶段）\n\n◆ 必须检索并遵守的书籍红线（校勘注记 + 超书发现）\n  1. N>2 是稳定性必要条件，N<2 发散（红线）；LQR 解析给出 N_opt=3，\n     但有延迟+噪声+机动时最优 N 呈 U 型，N≈6（不是 3）。\n  2. λ̇ 绝不能差分，必须滤波；λ̇ 滤波器存在最优时间常数 ≈20 ms。\n  3. 舵机延迟是头号杀手：τ≤50ms 无碍，τ=300ms 脱靶飙到 7.5 m。\n  4. 碰撞三角初始化：导弹初速必须落在碰撞三角上，否则\"零控\"不零。\n  5. 蒙特卡洛按分位数验收（P95），别只看均值（P95/均值≈3.4）。\n  6. APN 性能上限 = 目标加速度估计精度；误差>50% 反不如 PN，需置信度门限退化。\n  7. 限幅要\"双限\"（幅值 + 速率），留 20~30% 过载裕度。\n  8. 变导航比 / 多阶段切换不得阶跃，需 0.5~1.5 s 线性过渡区。\n\n◆ 检索工具与查询模板\n  多跳检索优先用 rag_query；单点用 rag_retrieve；读全文用 rag_expand。\n  示例：\n    rag_query(\"增强比例导引 APN 目标加速度补偿 N 选取 稳定性 红线 参数范围\")\n    rag_retrieve(query=\"navigation ratio N selection delay noise maneuver optimum\", top_k=5)\n    rag_expand(doc_id=\"file:.../domain_A_PN.md\")   # 分页读卡片全文\n\n◆ 落地要求（检索结果必须体现在）\n  ① 设计思路：law_type + 依据哪张卡 / 哪个公式号 F-xx / 经验号 Hxxx\n  ② 参数初值：引用 04_parameters.md 的推荐值与红线\n  ③ 稳定性说明：引用 N>2、带宽分离、裕度红线\n  ④ 验收标准：引用 B-05/D-05 的样本量与分位数\n  ⑤ 交付前：对照 05_checklist.md 逐项自检\n\n注意：\n若修改制导律则：仿真报告需要包括 - 制导律设计思路，修改后的制导律说明"
+      },
+      "parameters": {
+        "dp_w1": 35.0,
+        "dp_zeta1": 0.8,
+        "dp_tao1": 0.2,
+        "dp_w2": 44.0,
+        "dp_zeta2": 0.758,
+        "dp_tao2": 0.324,
+        "dp_w3": 42.0,
+        "dp_zeta3": 0.717,
+        "dp_N_pn": 4.5,
+        "dp_ny_lim": 20.0
+      },
+      "objectives": {
+        "hit_rate": 40.0,
+        "SEP": 74.35,
+        "peak_ny": 19.91,
+        "pitch_PM": 76.8,
+        "pitch_BW": 11.300000000000002,
+        "pitch_GM": 6.0,
+        "miss_distance": 74.35,
+        "peak_n": 19.91,
+        "peak_ny_mean": 19.91,
+        "peak_ny_max": 24.35,
+        "peak_n_max": 24.35,
+        "_parse_incomplete": 0.0,
+        "_sim_source": 0.0
+      },
+      "fitness": 0.005441274054412741,
+      "timestamp": 1788425257.002738,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 5,
+        "total_episodes": 3
+      }
+    }
+  ],
+  "long_term": [
+    {
+      "memory_id": "60c2e5f9bd2ad63b",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "guidance_rl_optimization",
+        "mode": "TUNE_PARAMS",
+        "RUN_CASE": "T",
+        "SUB_IDX": 1,
+        "category": "T",
+        "subcases": "{'T': [1]}",
+        "prompt": "制导系统设计任务（三层架构系统输入示例 · 书籍知识库 RAG 增强版）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n任务工况（基于 monte_carlo_single.m T/G/AP/R 体系）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n运行工况：RUN_CASE='T'; SUB_IDX=1;\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n性能指标要求（Layer1 自动解析，Layer3 判断/反思智能体评估）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n命中率     >= 92%\nSEP脱靶量  <= 7 m\nPeakNy峰值法向过载 <= 20 g\nPM相位裕度 在 45°~ 70° 范围内\nBW带宽     在 20 ~ 85 rad/s 范围内\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n设计约束\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n1. 模板要求: 以 monte_carlo_single.m 为基础模板\n   - 保持 RL_PARAMS_BEGIN/END 注入块结构不变（RL优化器通过此块修改参数）\n   - rl_w1, rl_zeta1, rl_w2, rl_zeta2, rl_w3, rl_zeta3 对应驾驶仪参数\n   - rl_N_pn对应制导律参数\n   - base=struct(...) 中引用上述 rl_* 变量\n\n2. 不可大变动的部分（接口与变量可改）:\n   - 六自由度弹道模型（df/rk4f 函数）\n   - 驾驶仪设计函数（cg 函数）\n   - 气动力计算（af 函数）\n   - 控制律（cf 函数）\n\n3. 可选修改:\n   - 制导律（gf 函数）：可修改导引律结构，但接口不变\n   - 初始交战参数（base struct 中的目标/导弹参数）\n\n4.MATLAB代码要求：\n- 要符合matlab语法规范\n- 变量定义完整，且整体一致\n- 不出现未定义变量\n- 保持原有接口兼容\n- 对关键参数和新增项加注释\n\n5. 仿真输出格式要求（RL优化器解析依赖）:\n   - print_summary 格式: 命中率(miss<10m): X%  SEP: X.XXm\n   - 峰值法向过载行: 峰值法向过载: X.XX±Y.XXg\n   - 俯仰参数行: 俯仰PM: X.X±Y.Y°  BW: X.X±Y.X rad/s  GM: X.X±Y.X dB\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n★ 书籍知识库 RAG 约束（本版新增 · 设计全程强制执行）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n系统内置一部蒸馏书籍知识库，位于 knowledge_base/books/books/book010/，\n是《系统化飞控实战》010 本（600 章）的 30 张 RIA++ 卡归档。\n设计制导律/整定参数前，必须先按下面路由表对书籍做 RAG 检索，\n把检索到的【理论/公式/经验/红线】落地到设计决策，禁止凭空拍参数。\n\n◆ 知识域 → 卡片文件\n  A 比例导引 PN     → domain_A_PN.md         （含 APN / 预测制导融合）\n  B 最优制导        → domain_B_Optimal.md    （LQR/Riccati、N_opt=3 的由来）\n  C 终端制导        → domain_C_Terminal.md   （视场/落角/能量约束）\n  D 系统建模仿真    → domain_D_SystemModeling.md（稳定性/整定/蒙特卡洛/抗干扰）\n  E 飞行器轨迹控制  → domain_E_Trajectory.md （规划/跟踪/辨识/鲁棒）\n\n◆ 结构化数据资产（可跨文档引用编号）\n  assets/00_INDEX.md       资产总索引（按问题检索路由，先看它）\n  assets/01_theory.md      理论体系（30 卡【R】段）\n  assets/02_formulas.md    公式集 197 条（编号 F-xx-xx）\n  assets/03_heuristics.md  经验集 439 条（编号 H001…，注明出处卡号）\n  assets/04_parameters.md  工程参数速查表（9 大类：推荐值/调节方向/红线/出处）\n  assets/05_checklist.md   7 阶段设计与仿真检查清单（⚠️=作者踩过的坑）\n\n◆ 按设计问题检索路由表\n  选制导律类型 (PN/APN/OGL/滑模/预测)  → A-05/A-06 + B 域 + C 域\n  定导航比 N                         → A-02 + 04_parameters.md §1\n  稳定性红线 / 失稳机理              → A-02(N>2) + D-02(寄生回路)\n  脱靶量 / 蒙特卡洛验收              → A-04 + D-05 + B-05(样本量/分位数)\n  视线角速率符号 / 滤波              → A-03 + A-06(λ̇ 绝不差分)\n  驾驶仪参数整定 (w/ζ/τ)            → D-03 + 04_parameters.md\n  视场 / 框架角约束                  → C-01 / C-02\n  落角 / 攻角约束                    → C-03\n  抗干扰                             → D-06（全库经验最密）\n  交付前自检                         → 05_checklist.md（7 阶段）\n\n◆ 必须检索并遵守的书籍红线（校勘注记 + 超书发现）\n  1. N>2 是稳定性必要条件，N<2 发散（红线）；LQR 解析给出 N_opt=3，\n     但有延迟+噪声+机动时最优 N 呈 U 型，N≈6（不是 3）。\n  2. λ̇ 绝不能差分，必须滤波；λ̇ 滤波器存在最优时间常数 ≈20 ms。\n  3. 舵机延迟是头号杀手：τ≤50ms 无碍，τ=300ms 脱靶飙到 7.5 m。\n  4. 碰撞三角初始化：导弹初速必须落在碰撞三角上，否则\"零控\"不零。\n  5. 蒙特卡洛按分位数验收（P95），别只看均值（P95/均值≈3.4）。\n  6. APN 性能上限 = 目标加速度估计精度；误差>50% 反不如 PN，需置信度门限退化。\n  7. 限幅要\"双限\"（幅值 + 速率），留 20~30% 过载裕度。\n  8. 变导航比 / 多阶段切换不得阶跃，需 0.5~1.5 s 线性过渡区。\n\n◆ 检索工具与查询模板\n  多跳检索优先用 rag_query；单点用 rag_retrieve；读全文用 rag_expand。\n  示例：\n    rag_query(\"增强比例导引 APN 目标加速度补偿 N 选取 稳定性 红线 参数范围\")\n    rag_retrieve(query=\"navigation ratio N selection delay noise maneuver optimum\", top_k=5)\n    rag_expand(doc_id=\"file:.../domain_A_PN.md\")   # 分页读卡片全文\n\n◆ 落地要求（检索结果必须体现在）\n  ① 设计思路：law_type + 依据哪张卡 / 哪个公式号 F-xx / 经验号 Hxxx\n  ② 参数初值：引用 04_parameters.md 的推荐值与红线\n  ③ 稳定性说明：引用 N>2、带宽分离、裕度红线\n  ④ 验收标准：引用 B-05/D-05 的样本量与分位数\n  ⑤ 交付前：对照 05_checklist.md 逐项自检\n\n注意：\n若修改制导律则：仿真报告需要包括 - 制导律设计思路，修改后的制导律说明"
+      },
+      "parameters": {
+        "dp_w1": 40.50841722357155,
+        "dp_zeta1": 0.5644022934961966,
+        "dp_tao1": 0.08446449994389947,
+        "dp_w2": 35.815478566340055,
+        "dp_zeta2": 0.7,
+        "dp_tao2": 0.1,
+        "dp_w3": 40.0,
+        "dp_zeta3": 0.7,
+        "dp_N_pn": 4.5,
+        "dp_ny_lim": 20.0
+      },
+      "objectives": {
+        "mc_seed_results": 0.0,
+        "mc_seed_count": 3.0,
+        "mc_seed_values": 0.0,
+        "mc_seed_all_pass": 0.0,
+        "hit_rate": 100.0,
+        "SEP": 4.96,
+        "miss_distance": 4.96,
+        "peak_ny": 5.71,
+        "peak_n": 5.71,
+        "peak_ny_max": 5.71,
+        "peak_n_max": 5.71,
+        "pitch_PM": 68.9,
+        "pitch_PM_min": 68.9,
+        "pitch_PM_max": 68.9,
+        "pitch_BW": 83.36,
+        "pitch_BW_min": 83.36,
+        "pitch_BW_max": 83.36
+      },
+      "fitness": 0.16946308724832215,
+      "timestamp": 1788414534.7483401,
+      "access_count": 13,
+      "last_access": 1788425097.3432336,
+      "metadata": {
+        "iteration": 4,
+        "total_episodes": 3
+      }
+    },
+    {
+      "memory_id": "7ebb4e6f48d45a12",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "guidance_rl_optimization",
+        "algorithm": "PPO",
+        "best_reward": 3.6587540444444437
+      },
+      "parameters": {
+        "dp_w1": 50.87051033973694,
+        "dp_zeta1": 1.086813548207283,
+        "dp_tao1": 0.1631862163543701,
+        "dp_w2": 44.53599542379379,
+        "dp_zeta2": 0.7577844949439168,
+        "dp_tao2": 0.324081152677536,
+        "dp_w3": 41.983359307050705,
+        "dp_zeta3": 0.7165405865758656,
+        "dp_N_pn": 5.054304018616676,
+        "dp_ny_lim": 19.64484453201294,
+        "phys_m": 231.0,
+        "phys_P": 5000.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 4.87,
+        "miss_distance": 4.87,
+        "control_energy": 50.0,
+        "pitch_PM": 80.4,
+        "pitch_BW": 139.04,
+        "pitch_GM": 6.0,
+        "peak_ny": 6.17,
+        "peak_n": 6.17,
+        "peak_ny_max": 6.17
+      },
+      "fitness": 0.5596714285714285,
+      "timestamp": 1788407749.5135877,
+      "access_count": 13,
+      "last_access": 1788425097.3432336,
+      "metadata": {
+        "optimizer": "MatlabRLOptimizer",
+        "episode_count": 15,
+        "timestamp": 1788407749.5135877,
+        "final_status": "success",
+        "guidance_params": {
+          "N_pn": 5.054304018616676,
+          "ny_lim": 19.64484453201294
+        },
+        "autopilot_params": {
+          "w1": 50.87051033973694,
+          "zeta1": 1.086813548207283,
+          "tao1": 0.1631862163543701,
+          "w2": 44.53599542379379,
+          "zeta2": 0.7577844949439168,
+          "tao2": 0.324081152677536,
+          "w3": 41.983359307050705,
+          "zeta3": 0.7165405865758656
+        }
+      }
+    },
+    {
+      "memory_id": "e5690fe96550f993",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "rl_episode_best",
+        "episode": 2
+      },
+      "parameters": {
+        "w1": 39.21859532594681,
+        "zeta1": 0.35,
+        "tao1": 0.07114483714103698,
+        "w2": 43.1835663318634,
+        "zeta2": 0.39204512387514107,
+        "tao2": 0.35,
+        "w3": 55.16784191131592,
+        "zeta3": 0.39726573973894114,
+        "N_pn": 5.336553543806076,
+        "ny_lim": 18.999521732330322
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 5.0,
+        "peak_ny": 6.72,
+        "pitch_PM": 57.6,
+        "pitch_BW": 69.39,
+        "pitch_GM": 6.0,
+        "miss_distance": 5.0,
+        "peak_n": 6.72,
+        "peak_ny_mean": 6.72,
+        "peak_ny_max": 6.72,
+        "peak_n_max": 6.72,
+        "_parse_incomplete": 0.0
+      },
+      "fitness": 0.8214285714285714,
+      "timestamp": 1788410378.6820278,
+      "access_count": 13,
+      "last_access": 1788425097.3432336,
+      "metadata": {
+        "episode": 2,
+        "reward": 5.175
+      }
+    },
+    {
+      "memory_id": "d1f0d5f5ca46f1af",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "guidance_rl_optimization",
+        "algorithm": "PPO",
+        "best_reward": 5.175
+      },
+      "parameters": {
+        "dp_w1": 21.607953310012817,
+        "dp_zeta1": 0.35,
+        "dp_tao1": 0.05,
+        "dp_w2": 51.45519256591797,
+        "dp_zeta2": 0.9870024167001247,
+        "dp_tao2": 0.31036977171897884,
+        "dp_w3": 60.0,
+        "dp_zeta3": 0.46566163897514334,
+        "dp_N_pn": 5.076052263379097,
+        "dp_ny_lim": 18.4692562520504,
+        "phys_m": 231.0,
+        "phys_P": 5000.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 4.91,
+        "miss_distance": 4.91,
+        "control_energy": 50.0,
+        "pitch_PM": 91.5,
+        "pitch_BW": 9.48,
+        "pitch_GM": 6.0,
+        "peak_ny": 6.49,
+        "peak_n": 6.49,
+        "peak_ny_max": 6.49
+      },
+      "fitness": 0.5922736263736263,
+      "timestamp": 1788411228.5678022,
+      "access_count": 19,
+      "last_access": 1788425097.3432336,
+      "metadata": {
+        "optimizer": "MatlabRLOptimizer",
+        "episode_count": 28,
+        "timestamp": 1788411228.5678022,
+        "final_status": "success",
+        "guidance_params": {
+          "N_pn": 5.076052263379097,
+          "ny_lim": 18.4692562520504
+        },
+        "autopilot_params": {
+          "w1": 21.607953310012817,
+          "zeta1": 0.35,
+          "tao1": 0.05,
+          "w2": 51.45519256591797,
+          "zeta2": 0.9870024167001247,
+          "tao2": 0.31036977171897884,
+          "w3": 60.0,
+          "zeta3": 0.46566163897514334
+        }
+      }
+    },
+    {
+      "memory_id": "69c3ff1f199a2b52",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "guidance_rl_optimization",
+        "algorithm": "PPO",
+        "best_reward": 3.6456274509803923
+      },
+      "parameters": {
+        "dp_w1": 60.0,
+        "dp_zeta1": 0.9648549377918243,
+        "dp_tao1": 0.11813308000564574,
+        "dp_w2": 25.07819890975952,
+        "dp_zeta2": 0.45808786004781715,
+        "dp_tao2": 0.20658782497048375,
+        "dp_w3": 42.64813542366028,
+        "dp_zeta3": 0.35,
+        "dp_N_pn": 4.652571067214012,
+        "dp_ny_lim": 16.0,
+        "phys_m": 231.0,
+        "phys_P": 5000.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 4.93,
+        "miss_distance": 4.93,
+        "control_energy": 50.0,
+        "pitch_PM": 77.0,
+        "pitch_BW": 154.44,
+        "pitch_GM": 6.0,
+        "peak_ny": 5.65,
+        "peak_n": 5.65,
+        "peak_ny_max": 5.65
+      },
+      "fitness": 0.6119285714285714,
+      "timestamp": 1788412595.56027,
+      "access_count": 19,
+      "last_access": 1788425097.3432336,
+      "metadata": {
+        "optimizer": "MatlabRLOptimizer",
+        "episode_count": 38,
+        "timestamp": 1788412595.56027,
+        "final_status": "success",
+        "guidance_params": {
+          "N_pn": 4.652571067214012,
+          "ny_lim": 16.0
+        },
+        "autopilot_params": {
+          "w1": 60.0,
+          "zeta1": 0.9648549377918243,
+          "tao1": 0.11813308000564574,
+          "w2": 25.07819890975952,
+          "zeta2": 0.45808786004781715,
+          "tao2": 0.20658782497048375,
+          "w3": 42.64813542366028,
+          "zeta3": 0.35
+        }
+      }
+    },
+    {
+      "memory_id": "f1219034221f7c5c",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "rl_episode_best",
+        "episode": 2
+      },
+      "parameters": {
+        "w1": 56.97193741798401,
+        "zeta1": 0.43632908761501304,
+        "tao1": 0.16088033467531204,
+        "w2": 20.0,
+        "zeta2": 0.7590349666774272,
+        "tao2": 0.05,
+        "w3": 20.0,
+        "zeta3": 0.5774738818407058,
+        "N_pn": 5.453127354383469,
+        "ny_lim": 16.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 4.85,
+        "peak_ny": 7.53,
+        "pitch_PM": 54.3,
+        "pitch_BW": 100.06,
+        "pitch_GM": 6.0,
+        "miss_distance": 4.85,
+        "peak_n": 7.53,
+        "peak_ny_mean": 7.53,
+        "peak_ny_max": 7.53,
+        "peak_n_max": 7.53,
+        "_parse_incomplete": 0.0
+      },
+      "fitness": 0.7804472527472527,
+      "timestamp": 1788413427.1187174,
+      "access_count": 6,
+      "last_access": 1788422674.3438673,
+      "metadata": {
+        "episode": 2,
+        "reward": 2.9992772941176473
+      }
+    },
+    {
+      "memory_id": "42003a34fe194ab0",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "rl_episode_best",
+        "episode": 3
+      },
+      "parameters": {
+        "w1": 60.0,
+        "zeta1": 0.35,
+        "tao1": 0.21726149469614028,
+        "w2": 20.0,
+        "zeta2": 0.47366269230842584,
+        "tao2": 0.08658829033374785,
+        "w3": 26.760523319244385,
+        "zeta3": 0.42527664601802817,
+        "N_pn": 3.5328225195407867,
+        "ny_lim": 16.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 4.99,
+        "peak_ny": 6.55,
+        "pitch_PM": 45.4,
+        "pitch_BW": 98.84,
+        "pitch_GM": 6.0,
+        "miss_distance": 4.99,
+        "peak_n": 6.55,
+        "peak_ny_mean": 6.55,
+        "peak_ny_max": 6.55,
+        "peak_n_max": 6.55,
+        "_parse_incomplete": 0.0
+      },
+      "fitness": 0.7792010989010989,
+      "timestamp": 1788413491.4122355,
+      "access_count": 2,
+      "last_access": 1788419385.9934258,
+      "metadata": {
+        "episode": 3,
+        "reward": 3.0376519450980393
+      }
+    },
+    {
+      "memory_id": "67f81d06b8f82807",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "rl_episode_best",
+        "episode": 4
+      },
+      "parameters": {
+        "w1": 60.0,
+        "zeta1": 0.35,
+        "tao1": 0.2528783202171325,
+        "w2": 20.0,
+        "zeta2": 0.6373723097145556,
+        "tao2": 0.05,
+        "w3": 20.0,
+        "zeta3": 0.4013607800006866,
+        "N_pn": 3.907326489686966,
+        "ny_lim": 16.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 5.0,
+        "peak_ny": 5.33,
+        "pitch_PM": 45.4,
+        "pitch_BW": 98.35,
+        "pitch_GM": 6.0,
+        "miss_distance": 5.0,
+        "peak_n": 5.33,
+        "peak_ny_mean": 5.33,
+        "peak_ny_max": 5.33,
+        "peak_n_max": 5.33,
+        "_parse_incomplete": 0.0
+      },
+      "fitness": 0.7803516483516484,
+      "timestamp": 1788413553.698012,
+      "access_count": 2,
+      "last_access": 1788419385.9934258,
+      "metadata": {
+        "episode": 4,
+        "reward": 3.068352941176471
+      }
+    },
+    {
+      "memory_id": "e66638b429e259b0",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "rl_episode_best",
+        "episode": 8
+      },
+      "parameters": {
+        "w1": 60.0,
+        "zeta1": 0.35,
+        "tao1": 0.2815149873495102,
+        "w2": 20.0,
+        "zeta2": 0.6340793937444686,
+        "tao2": 0.05,
+        "w3": 20.0,
+        "zeta3": 0.35,
+        "N_pn": 4.236151143908501,
+        "ny_lim": 16.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 5.0,
+        "peak_ny": 5.69,
+        "pitch_PM": 45.4,
+        "pitch_BW": 98.04,
+        "pitch_GM": 6.0,
+        "miss_distance": 5.0,
+        "peak_n": 5.69,
+        "peak_ny_mean": 5.69,
+        "peak_ny_max": 5.69,
+        "peak_n_max": 5.69,
+        "_parse_incomplete": 0.0
+      },
+      "fitness": 0.7813054945054945,
+      "timestamp": 1788413826.6621523,
+      "access_count": 2,
+      "last_access": 1788419385.9934258,
+      "metadata": {
+        "episode": 8,
+        "reward": 3.0898705882352937
+      }
+    },
+    {
+      "memory_id": "2ff86a0c4d70c242",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "rl_episode_best",
+        "episode": 9
+      },
+      "parameters": {
+        "w1": 60.0,
+        "zeta1": 0.35,
+        "tao1": 0.25900938063859935,
+        "w2": 20.0,
+        "zeta2": 0.7446395721286534,
+        "tao2": 0.05,
+        "w3": 20.0,
+        "zeta3": 0.35,
+        "N_pn": 3.958473891019821,
+        "ny_lim": 16.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 4.94,
+        "peak_ny": 5.24,
+        "pitch_PM": 45.4,
+        "pitch_BW": 98.27,
+        "pitch_GM": 6.0,
+        "miss_distance": 4.94,
+        "peak_n": 5.24,
+        "peak_ny_mean": 5.24,
+        "peak_ny_max": 5.24,
+        "peak_n_max": 5.24,
+        "_parse_incomplete": 0.0
+      },
+      "fitness": 0.7827406593406593,
+      "timestamp": 1788413891.0194483,
+      "access_count": 1,
+      "last_access": 1788419314.0365078,
+      "metadata": {
+        "episode": 9,
+        "reward": 3.093778541176471
+      }
+    },
+    {
+      "memory_id": "f2f79da1fc525aa8",
+      "memory_type": "long_term",
+      "task_context": {
+        "task": "guidance_rl_optimization",
+        "algorithm": "PPO",
+        "best_reward": 3.093778541176471
+      },
+      "parameters": {
+        "dp_w1": 56.97193741798401,
+        "dp_zeta1": 0.43632908761501304,
+        "dp_tao1": 0.16088033467531204,
+        "dp_w2": 20.0,
+        "dp_zeta2": 0.7590349666774272,
+        "dp_tao2": 0.05,
+        "dp_w3": 20.0,
+        "dp_zeta3": 0.5774738818407058,
+        "dp_N_pn": 5.453127354383469,
+        "dp_ny_lim": 16.0,
+        "phys_m": 231.0,
+        "phys_P": 5000.0
+      },
+      "objectives": {
+        "hit_rate": 100.0,
+        "SEP": 4.85,
+        "miss_distance": 4.85,
+        "control_energy": 50.0,
+        "pitch_PM": 54.3,
+        "pitch_BW": 100.06,
+        "pitch_GM": 6.0,
+        "peak_ny": 7.53,
+        "peak_n": 7.53,
+        "peak_ny_max": 7.53
+      },
+      "fitness": 0.7804472527472527,
+      "timestamp": 1788413955.4201033,
+      "access_count": 10,
+      "last_access": 1788422644.2652833,
+      "metadata": {
+        "optimizer": "MatlabRLOptimizer",
+        "episode_count": 48,
+        "timestamp": 1788413955.4201033,
+        "final_status": "success",
+        "guidance_params": {
+          "N_pn": 5.453127354383469,
+          "ny_lim": 16.0
+        },
+        "autopilot_params": {
+          "w1": 56.97193741798401,
+          "zeta1": 0.43632908761501304,
+          "tao1": 0.16088033467531204,
+          "w2": 20.0,
+          "zeta2": 0.7590349666774272,
+          "tao2": 0.05,
+          "w3": 20.0,
+          "zeta3": 0.5774738818407058
+        }
+      }
+    },
+    {
+      "memory_id": "70126419e3cff6a0",
+      "memory_type": "long_term",
+      "task_context": {
+        "prompt": "制导系统设计任务（三层架构系统输入示例 · 书籍知识库 RAG 增强版）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n任务工况（基于 monte_carlo_single.m T/G/AP/R 体系）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n运行工况：RUN_CASE='T'; SUB_IDX=1;\n\n\n━━━━━━━━━━"
+      },
+      "parameters": {
+        "dp_w1": 40.50841722357155,
+        "dp_zeta1": 0.5644022934961966,
+        "dp_tao1": 0.08446449994389947,
+        "dp_w2": 35.815478566340055,
+        "dp_zeta2": 0.7,
+        "dp_tao2": 0.1,
+        "dp_w3": 40.0,
+        "dp_zeta3": 0.7,
+        "dp_N_pn": 4.5,
+        "dp_ny_lim": 20.0
+      },
+      "objectives": {
+        "mc_seed_results": [
+          {
+            "hit_rate": 100.0,
+            "SEP": 4.96,
+            "peak_ny": 5.66,
+            "pitch_PM": 68.9,
+            "pitch_BW": 83.36,
+            "pitch_GM": 6.0,
+            "miss_distance": 4.96,
+            "peak_n": 5.66,
+            "peak_ny_mean": 5.66,
+            "peak_ny_max": 5.66,
+            "peak_n_max": 5.66,
+            "_parse_incomplete": false,
+            "mc_seed": 42,
+            "random_seed": 42
+          },
+          {
+            "hit_rate": 100.0,
+            "SEP": 4.76,
+            "peak_ny": 5.71,
+            "pitch_PM": 68.9,
+            "pitch_BW": 83.36,
+            "pitch_GM": 6.0,
+            "miss_distance": 4.76,
+            "peak_n": 5.71,
+            "peak_ny_mean": 5.71,
+            "peak_ny_max": 5.71,
+            "peak_n_max": 5.71,
+            "_parse_incomplete": false,
+            "mc_seed": 2025,
+            "random_seed": 2025
+          },
+          {
+            "hit_rate": 100.0,
+            "SEP": 4.88,
+            "peak_ny": 5.56,
+            "pitch_PM": 68.9,
+            "pitch_BW": 83.36,
+            "pitch_GM": 6.0,
+            "miss_distance": 4.88,
+            "peak_n": 5.56,
+            "peak_ny_mean": 5.56,
+            "peak_ny_max": 5.56,
+            "peak_n_max": 5.56,
+            "_parse_incomplete": false,
+            "mc_seed": 3407,
+            "random_seed": 3407
+          }
+        ],
+        "mc_seed_count": 3,
+        "mc_seed_values": [
+          42,
+          2025,
+          3407
+        ],
+        "mc_seed_all_pass": null,
+        "hit_rate": 100.0,
+        "SEP": 4.96,
+        "miss_distance": 4.96,
+        "peak_ny": 5.71,
+        "peak_n": 5.71,
+        "peak_ny_max": 5.71,
+        "peak_n_max": 5.71,
+        "pitch_PM": 68.9,
+        "pitch_PM_min": 68.9,
+        "pitch_PM_max": 68.9,
+        "pitch_BW": 83.36,
+        "pitch_BW_min": 83.36,
+        "pitch_BW_max": 83.36
+      },
+      "fitness": 0.97024,
+      "timestamp": 1788414534.7153025,
+      "access_count": 1,
+      "last_access": 1788419314.0365078,
+      "metadata": {}
+    }
+  ],
+  "episodic": [
+    {
+      "memory_id": "ab635804252db922",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=1 mode=TUNE_PARAMS reason=数据源A（RAG历史默认参数，T1）：命中率100%≥92%达标；SEP 4.01m≤7m达标；PeakNy 4.44g≤20g达标；PM 77.1°超出[45,70]上限未达标；BW 6.31 rad/s低于[20,85]下限未达标。数据源B（parameter_experience_best）：",
+        "timestamp_iso": "2026-09-03T11:07:05"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788404825.0186772,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1,
+        "mode": "TUNE_PARAMS"
+      }
+    },
+    {
+      "memory_id": "b0875e1cd880b2e7",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "hermes_sim",
+        "description": "iter=1 hit=100.0% SEP=5.00m PeakNy_avg=7.35g PM=69.0° BW=106.3r/s",
+        "timestamp_iso": "2026-09-03T11:19:47"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788405587.6306427,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1
+      }
+    },
+    {
+      "memory_id": "6e9d969ab276a591",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=1 needs_opt=True suggestion=逐项判别：命中率100%≥92%达标；SEP=4.66m≤7m达标；PeakNy均值5.85g≤20g达标（peak_ny_max=6.07g仅作诊断参考，不因此判未达标）；PM=80.4°超出45°~70°上限，未达标；BW=139.04rad/s超出20~85rad/s上限，未达标。当前制导律命",
+        "timestamp_iso": "2026-09-03T12:01:21"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788408081.4889548,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1,
+        "needs_optimization": true
+      }
+    },
+    {
+      "memory_id": "5b97a9173619ae53",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=2 mode=MODIFY_LAW reason=数据源A（RAG历史默认参数，T1）：命中率100%≥92%达标；SEP 4.01m≤7m达标；PeakNy 4.44g≤20g达标；PM 77.1°超出[45,70]上限未达标；BW 6.31 rad/s低于[20,85]下限未达标。数据源B（上轮RL最优参数）：命中率100%达标；SEP 4.6",
+        "timestamp_iso": "2026-09-03T12:02:41"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788408161.1209111,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 2,
+        "mode": "MODIFY_LAW"
+      }
+    },
+    {
+      "memory_id": "f0a87f43e2c39275",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "hermes_sim",
+        "description": "iter=2 hit=100.0% SEP=4.99m PeakNy_avg=9.12g PM=80.7° BW=4.8r/s",
+        "timestamp_iso": "2026-09-03T12:19:04"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788409144.0063105,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 2
+      }
+    },
+    {
+      "memory_id": "4417a2f2258678a5",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=2 needs_opt=True suggestion=逐项判别：命中率100%≥92%达标；SEP=4.68m≤7m达标；PeakNy均值6.05g≤20g达标（peak_ny_max=6.24g仅作诊断参考，不因此判未达标）；PM=91.5°超出45°~70°上限，未达标；BW=9.48rad/s低于20~85rad/s下限，未达标。当前制导律命中率",
+        "timestamp_iso": "2026-09-03T13:00:44"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788411644.9102058,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 2,
+        "needs_optimization": true
+      }
+    },
+    {
+      "memory_id": "e3c74c886de9b205",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=3 mode=TUNE_PARAMS reason=数据源A（RAG历史默认参数 T1）：命中率100%≥92%达标；SEP 4.01m≤7m达标；PeakNy 4.44g≤20g达标；PM 77.1°超出[45,70]上限未达标；BW 6.31 rad/s低于[20,85]下限未达标。数据源B（上轮RL最优参数）：命中率100%达标；SEP 4.6",
+        "timestamp_iso": "2026-09-03T13:01:40"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788411700.753035,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 3,
+        "mode": "TUNE_PARAMS"
+      }
+    },
+    {
+      "memory_id": "720797030b62ec9b",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=3 needs_opt=True suggestion=逐项达标情况：命中率100%≥92%达标；SEP=4.34m≤7m达标；PeakNy均值5.36g≤20g达标（peak_ny_max=5.56g仅作诊断参考）；PM=77.0°不在45°~70°范围内，未达标；BW=154.44rad/s不在20~85rad/s范围内，未达标。当前制导律结构无需修",
+        "timestamp_iso": "2026-09-03T13:23:32"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788413012.3520901,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 3,
+        "needs_optimization": true
+      }
+    },
+    {
+      "memory_id": "e8e53a30ea4430e8",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=4 mode=TUNE_PARAMS reason=数据源A（RAG历史默认参数 T1）：命中率100%≥92%达标；SEP 4.01m≤7m达标；PeakNy 4.44g≤20g达标；PM 77.1°超出[45,70]上限未达标；BW 6.31 rad/s低于[20,85]下限未达标。数据源B（上轮RL最优参数）：命中率100%达标；SEP 4.3",
+        "timestamp_iso": "2026-09-03T13:24:17"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788413057.4702716,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 4,
+        "mode": "TUNE_PARAMS"
+      }
+    },
+    {
+      "memory_id": "8a6e96b8b74ac8a0",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=4 needs_opt=False suggestion=逐项达标情况：命中率100%≥92%达标；SEP=4.95m≤7m达标；PeakNy均值=5.28g≤20g达标（peak_ny_max=5.50g仅作诊断参考）；PM=68.9°在45°~70°范围内达标；BW=83.36rad/s在20~85rad/s范围内达标。五项指标全部满足验收要求，无需继",
+        "timestamp_iso": "2026-09-03T13:48:54"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788414534.7413378,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 4,
+        "needs_optimization": false
+      }
+    },
+    {
+      "memory_id": "b8dc25ac6c9d5bc3",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=1 mode=REUSE_HISTORY reason=【逐项比对】数据源A(RAG历史默认模板参数，T1)：命中率100.0%≥92%达标；SEP 4.01m≤7m达标；PeakNy 4.44g≤20g达标；PM 77.1°>70°未达标；BW 6.31<20未达标 → A存在PM、BW两项未达标。数据源B(PE最优记录)：记录60c2e5f9(命中1",
+        "timestamp_iso": "2026-09-03T14:59:42"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788418782.6916814,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1,
+        "mode": "REUSE_HISTORY"
+      }
+    },
+    {
+      "memory_id": "4b8e90f70016beb5",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=1 mode=REUSE_HISTORY reason=【源A·RAG历史默认模板参数@T4】命中率94%达标；SEP4.22m达标；PeakNy51.53g>20g未达标；PM77.1°>70°未达标；BW6.31<20未达标 → 5项中3项未达标。\n【源B·PE最优记录】记录60c2e5f9(命中率100%/SEP4.96/PeakNy5.71/PM",
+        "timestamp_iso": "2026-09-03T15:06:01"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788419161.4876235,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1,
+        "mode": "REUSE_HISTORY"
+      }
+    },
+    {
+      "memory_id": "2833da2a36122838",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "hermes_sim",
+        "description": "iter=1 hit=13.6% SEP=297.46m PeakNy_avg=63.32g PM=54.3° BW=100.1r/s",
+        "timestamp_iso": "2026-09-03T15:13:50"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788419630.0501506,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1
+      }
+    },
+    {
+      "memory_id": "e307fea518faa961",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=1 needs_opt=True suggestion=逐项指标：命中率20%未达标（要求≥92%）；SEP 103.16m未达标（要求≤7m）；PeakNy均值15.48g达标（≤20g）；PM 81.4°未达标（超出45~70°上限）；BW 4.54 rad/s未达标（低于20~85 rad/s下限）。PeakNy虽达标，但当前驾驶仪带宽极低、相位裕",
+        "timestamp_iso": "2026-09-03T15:25:22"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788420322.3274317,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1,
+        "needs_optimization": true
+      }
+    },
+    {
+      "memory_id": "02d6e3e765d8e7ce",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=2 mode=TUNE_PARAMS reason=【源A·RAG历史T4基线(默认参数)】命中率94%达标;SEP4.22m达标;PeakNy51.53g>20g未达标;PM77.1°>70°未达标;BW6.31<20未达标 → 3/5未达标。\n【源B·PE记录】历史记录60c2e5f9/e5690fe9名义五项全达标,但60c2e5f9模型文件实",
+        "timestamp_iso": "2026-09-03T15:28:20"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788420500.7919662,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 2,
+        "mode": "TUNE_PARAMS"
+      }
+    },
+    {
+      "memory_id": "9c956dea58b5fde0",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=2 needs_opt=True suggestion=逐项指标：命中率40%未达标（要求≥92%）；SEP 74.35m未达标（要求≤7m）；PeakNy均值19.91g达标（≤20g，max 24.35g仅诊断参考）；PM 76.8°未达标（要求45~70°）；BW 11.3rad/s未达标（要求20~85rad/s）。当前驾驶仪带宽仍远低于下限、相",
+        "timestamp_iso": "2026-09-03T15:38:40"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788421120.9263878,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 2,
+        "needs_optimization": true
+      }
+    },
+    {
+      "memory_id": "574594e66fc7770e",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=3 mode=TUNE_PARAMS reason=【源A·RAG历史T4基线(默认参数)】命中率94%达标;SEP4.22m达标;PeakNy51.53g>20g未达标;PM77.1°>70°未达标;BW6.31<20未达标 → 3/5未达标。\n【源B·PE记录】上轮RL最优参数(迭代2,优先级高于PE)实测命中率40%/SEP74.35m/Pea",
+        "timestamp_iso": "2026-09-03T15:39:49"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788421189.4453855,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 3,
+        "mode": "TUNE_PARAMS"
+      }
+    },
+    {
+      "memory_id": "d5259412d7a014b1",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=3 needs_opt=True suggestion=PeakNy均值19.91g达标（≤20g，max 24.35g仅诊断参考）；未达标项：命中率40.0%<92%，SEP 74.35m>7m，PM 76.8°>70°，BW 11.3rad/s<20rad/s。当前主要瓶颈是驾驶仪带宽不足、相位裕度偏高导致弹体响应迟缓，建议继续整定自驾仪参数：增大w",
+        "timestamp_iso": "2026-09-03T15:52:01"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788421921.9151466,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 3,
+        "needs_optimization": true
+      }
+    },
+    {
+      "memory_id": "5bc5caa53795b8ee",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=4 mode=TUNE_PARAMS reason=【源A·RAG历史T4基线(默认参数)】命中率94%达标;SEP4.22m达标;PeakNy51.53g>20g未达标;PM77.1°>70°未达标;BW6.31<20未达标 → 3/5未达标。\n【源B·PE记录】上轮RL最优参数(迭代3,优先级高于PE)实测命中率40%/SEP74.35m/Pea",
+        "timestamp_iso": "2026-09-03T15:53:15"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788421995.4313726,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 4,
+        "mode": "TUNE_PARAMS"
+      }
+    },
+    {
+      "memory_id": "d67681686c6ffd28",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "reflection",
+        "description": "iter=4 needs_opt=True suggestion=PeakNy均值19.91g≤20g，达标（max 24.35g仅诊断参考）。未达标：命中率40.0%<92%，SEP 74.35m>7m，PM 76.8°>70°，BW 11.3rad/s<20rad/s。连续两轮TUNE_PARAMS指标停滞，制导律结构缺陷突出，建议切换modify_law：取",
+        "timestamp_iso": "2026-09-03T16:04:03"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788422643.8818614,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 4,
+        "needs_optimization": true
+      }
+    },
+    {
+      "memory_id": "ae53ef03130e5d1a",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "plan",
+        "description": "iter=5 mode=MODIFY_LAW reason=【源A·RAG历史T4基线(默认参数)】命中率94%达标;SEP4.22m达标;PeakNy51.53g>20g未达标;PM77.1°>70°未达标;BW6.31<20未达标 → 3/5未达标。\n【源B·PE记录】上轮RL最优参数(迭代4前,优先级高于PE)实测命中率40%/SEP74.35m/Pe",
+        "timestamp_iso": "2026-09-03T16:05:51"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788422751.9596543,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 5,
+        "mode": "MODIFY_LAW"
+      }
+    },
+    {
+      "memory_id": "281dafedec9aa697",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "hermes_sim",
+        "description": "iter=5 hit=10.6% SEP=311.55m PeakNy_avg=15.73g PM=80.7° BW=4.8r/s",
+        "timestamp_iso": "2026-09-03T16:44:57"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1788425097.3331385,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 5
+      }
+    }
+  ],
+  "access_counts": {}
+}

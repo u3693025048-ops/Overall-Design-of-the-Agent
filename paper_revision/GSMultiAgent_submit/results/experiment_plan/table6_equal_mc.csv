@@ -1,0 +1,6 @@
+method,scenario,first_success,feasible_dev,feasible_test,total_time_min_mean,total_time_min_sd,iterations_mean,iterations_sd,mc_calls_dev_mean,mc_calls_dev_sd,time_per_call_min_mean,time_per_call_min_sd,note
+Single-Agent Hermes,T1,3/3,3/3,3/3,11.2,3.1,4.0,1.0,180,45,0.061,0.002,n10; search 10 traj; first_success=final_dev_feasible
+Single-Agent Hermes,T2,3/3,3/3,3/3,14.5,0.2,4.7,0.6,225,0,0.064,0.001,n10; search 10 traj; first_success=final_dev_feasible
+Single-Agent Hermes,T3,3/3,3/3,3/3,13.7,1.5,4.7,0.6,225,0,0.060,0.006,n10; search 10 traj; first_success=final_dev_feasible
+Single-Agent Hermes,T4,3/3,3/3,3/3,11.7,2.2,3.7,0.6,180,45,0.065,0.006,n10; search 10 traj; first_success=final_dev_feasible
+Single-Agent Hermes,pooled,12/12,12/12,12/12,12.8,2.2,4.3,0.8,203,36,0.062,0.004,MC range 135-225; wall-clock 8.2-15.0 min; source optimizer_equal_mc_75_sah_n10

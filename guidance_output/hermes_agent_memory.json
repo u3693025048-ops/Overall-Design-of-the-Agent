@@ -1,0 +1,18 @@
+{
+  "T1_TUNE_PARAMS_iter1_result": {
+    "value": "工况 T1 匀速直飞 (RUN_CASE='T';SUB_IDX=1) TUNE_PARAMS 首轮结果。基线(默认参数 w1=40/ζ1=0.75/tao1=0.20/w2=35/ζ2=0.75/tao2=0.20/w3=40/ζ3=0.70/N_pn=4): 命中率100% SEP4.01m PeakNy4.44g PM77.1° BW6.31rad/s。本轮 INIT_PARAMS={N_pn=6,w1=52,ζ1=0.65,tao1=0.15,w2=46,ζ2=0.65,tao2=0.15,w3=52,ζ3=0.60}: 命中率100% SEP5.0m PeakNy7.35g PM69.0° BW106.29rad/s。结论: 未达标(BW 106.29>85 严重超调)。关键洞察: BW 对参数极敏感(6.31→106.29 约17倍)，PM 已入 [45,70]。RL 优化方向: 需回退(减小 N_pn 或 w/增大 ζ/tao)将 BW 从106 压回[20,85]，同时保持 PM>=45°。注意 BW/PM 为确定性指标(每run相同)，非统计量。",
+    "saved_at": "2026-09-03T11:19:37"
+  },
+  "T1_MODIFY_LAW_iter2_result": {
+    "value": "工况 T1 (RUN_CASE='T';SUB_IDX=1) MODIFY_LAW 轮结果。将 gf() PN 改造为带 T_go 平滑增益调度的变导航比制导律(红线8线性过渡)，同时整定 w1=35/ζ1=0.8/tao1=0.20/N_pn=5.05(其余保持RL最优)。结果: 命中率100% SEP4.99m PeakNy9.12g PM80.7° BW4.75rad/s。未达标(PM80.7>70仍超、BW4.75<20又低)。关键洞察: (1) T_go调度+w1下调把BW从139压到4.75，严重过度——BW对w1/T_go极敏感且有阈值效应(实测 w1=40→BW6.31, w1=52→BW106, w1=35→BW4.75); (2) PM对w1/ζ1不敏感，健康驾驶仪下稳定77~80°，仅ζ1≈0.65或w1≤26才显著下降(AP4 w1=26/ζ0.5→PM32.1); (3) BW甜点约在w1≈40~50区间，BW与PM难以同时入区间。Layer3将进入RL优化。",
+    "saved_at": "2026-09-03T12:18:52"
+  },
+  "T4_REUSE_HISTORY_iter1_result": {
+    "value": "工况 T4 (RUN_CASE='T';SUB_IDX=4) REUSE_HISTORY 轮。run_simulation 自动选模时错误选中了 PE 模型 60c2e5f9...T1_modifylaw_1788408762.m（T1 MODIFY_LAW 轮生成的带 T_go 平滑增益调度变导航比制导律脚本），而非标准 KB 模板 monte_carlo_single.m（标准 PN 律）。将上轮RL全局最优参数(f2f79da1: w1=56.97/ζ1=0.436/tao1=0.161/w2=20/ζ2=0.759/tao2=0.05/w3=20/ζ3=0.577/N_pn=5.453/ny_lim=16)叠加到该 T1 变律模型后在 T4 高频大机动下崩溃：命中率13.64% SEP297.46m PeakNy63.32g PM54.3° BW100.06rad/s。4/5不达标(仅PM达标)。judge_requirements→satisfied=False→next_step=rl_optimize。关键洞察：失败根因是【模型选错】——T1 modifylaw 的变导航比律在 T4 高频大机动下失效(命中率从基线94%崩到13.64%)，而非参数质量问题。Layer3 RL 优化必须在标准 KB 模板(标准PN律 monte_carlo_single.m)上进行，不得复用该 T1 变律模型。另注：60c2e5f9 记录的 objectives(PM68.9/BW83.36全达标)与其模型文件名 T1_modifylaw 存在数据不一致。",
+    "saved_at": "2026-09-03T15:13:40"
+  },
+  "T4_MODIFY_LAW_iter5_result": {
+    "value": "工况 T4 (RUN_CASE='T';SUB_IDX=4) MODIFY_LAW 轮(第5轮)结果。将 gf() 从\"变导航比PN(末端N_eff降至0.6N≈2.7、无目标加速度补偿)\"改造为APN。经两轮修正后最终脚本 guidance_pn_fix_T4_1788424667.m: 命中率10.61% SEP311.55m PeakNy15.73g PM80.7° BW4.75rad/s → 4/5不达标(仅PeakNy达标)。judge_requirements→satisfied=False→next_step=rl_optimize。关键洞察:(1)【致命bug】rl_ny_lim 声明但未注入 base=struct() 导致幅值限幅失效,PeakNy曾飙到64.83g(超ny_lim=20g三倍),注入后修复至15.73g;(2)【APN前馈帮倒忙】a_T由TVx/TVy/TVz原始差分估计放大噪声,前馈补偿(N/2)a_T⊥导致hit从40%崩到3.03%(H033/H034翻车模式),关闭前馈(Kc=0)退化为纯PN后回升至10.61%;(3)【N_pn偏高】tao1=0.2s(200ms)舵机延迟下按A-02/H010延迟选型表N应取2.5~3.0,当前N_pn=4.5全程恒定偏高致末端指令过冲脱靶——原末端降增益至2.7反而更接近该延迟稳定区间;(4)【模板选错】generate_matlab MODIFY_LAW检索到T1_modifylaw模板(guidance_simulation_T1_modifylaw_1788408762.m)而非标准KB模板,w1=35在该模板下BW仅4.75(当前真实模型BW=11.3),导致BW/PM无法达标;(5)【BW/PM为驾驶仪指标】与制导律无关,由w1/ζ1/tao1等决定,当前w1=35下BW4.75/PM80.7,需w1提至40~50才能入[20,85]。下一轮RL优化方向:N_pn下调3.0~3.5、w1提至40~50、ζ微调压PM。",
+    "saved_at": "2026-09-03T16:44:45"
+  }
+}

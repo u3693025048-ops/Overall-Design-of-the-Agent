@@ -1,0 +1,5 @@
+method,scenario,test_feasible,test_SEP_mean,test_SEP_sd,test_peak_nz_mean,test_peak_nz_sd,test_PM_mean,test_PM_sd,test_BW_mean,test_BW_sd,note
+Single-Agent Hermes,T1,3/3,4.46,0.07,4.65,0.16,56.4,7.0,81.6,1.9,n10 test 100 traj
+Single-Agent Hermes,T2,3/3,4.47,0.09,4.80,0.18,56.4,7.0,81.6,1.9,n10 test 100 traj
+Single-Agent Hermes,T3,3/3,4.49,0.27,6.73,1.69,58.2,4.6,82.7,2.3,n10 test 100 traj
+Single-Agent Hermes,T4,3/3,4.52,0.32,18.04,0.83,56.4,7.0,81.6,1.9,n10 test 100 traj

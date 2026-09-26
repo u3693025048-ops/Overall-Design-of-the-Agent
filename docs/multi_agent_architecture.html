@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GSMultiAgent 多智能体架构分析</title>
+  <style>
+    :root {
+      --ink: #1c1915;
+      --ink-soft: #3d3830;
+      --muted: #6b6258;
+      --paper: #f6f1e8;
+      --card: #fffdf8;
+      --line: #d9d0c3;
+      --accent: #1f5c4d;
+      --accent-2: #b4532a;
+      --accent-3: #2b4c7e;
+      --ok: #1f6b3a;
+      --warn: #8a5a12;
+      --layer1: #2b4c7e;
+      --layer2: #1f5c4d;
+      --layer3: #b4532a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.75;
+    }
+    header.hero {
+      background:
+        radial-gradient(1200px 420px at 12% -10%, rgba(31,92,77,.18), transparent 60%),
+        radial-gradient(900px 380px at 92% 0%, rgba(43,76,126,.14), transparent 55%),
+        #ece4d6;
+      border-bottom: 1px solid var(--line);
+      padding: 3.2rem 6vw 2.4rem;
+    }
+    header.hero .kicker {
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      font-size: .72rem;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: .6rem;
+    }
+    header.hero h1 {
+      font-size: clamp(1.55rem, 2.6vw, 2.2rem);
+      line-height: 1.35;
+      max-width: none;
+      margin-bottom: .8rem;
+    }
+    header.hero p.lead {
+      max-width: 78ch;
+      color: var(--ink-soft);
+      font-size: 1.05rem;
+    }
+    header.hero .meta {
+      margin-top: 1.2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .chip {
+      display: inline-block;
+      border: 1px solid var(--line);
+      background: var(--card);
+      padding: .18rem .7rem;
+      border-radius: 999px;
+      font-size: .78rem;
+      color: var(--muted);
+    }
+    nav.toc {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(246,241,232,.94);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--line);
+      padding: .7rem 6vw;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .35rem .55rem;
+    }
+    nav.toc a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: .82rem;
+      padding: .22rem .55rem;
+      border-radius: 6px;
+    }
+    nav.toc a:hover { background: #e6efe9; }
+    main { max-width: 1120px; margin: 0 auto; padding: 2.2rem 6vw 4.5rem; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1.7rem 1.6rem 1.5rem;
+      margin-bottom: 1.4rem;
+    }
+    h2 {
+      font-size: 1.28rem;
+      margin-bottom: 1rem;
+      padding-left: .7rem;
+      border-left: 4px solid var(--accent);
+    }
+    h3 { font-size: 1.02rem; margin: 1.15rem 0 .55rem; color: var(--accent-3); }
+    p { margin-bottom: .75rem; color: var(--ink-soft); }
+    ul, ol { padding-left: 1.2rem; margin-bottom: .8rem; color: var(--ink-soft); }
+    li { margin-bottom: .35rem; }
+    code {
+      font-family: Consolas, "Cascadia Code", monospace;
+      background: #efe7da;
+      padding: .05rem .38rem;
+      border-radius: 4px;
+      font-size: .88em;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .grid-3, .grid-2, .grid-5 { display: grid; gap: .85rem; }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-5 { grid-template-columns: repeat(5, 1fr); }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: .9rem .95rem;
+      background: #fbf8f2;
+    }
+    .card h4 { font-size: .92rem; margin-bottom: .35rem; }
+    .card.l1 { border-top: 4px solid var(--layer1); }
+    .card.l2 { border-top: 4px solid var(--layer2); }
+    .card.l3 { border-top: 4px solid var(--layer3); }
+    .arch {
+      display: grid;
+      gap: .7rem;
+      margin: 1rem 0 1.1rem;
+    }
+    .layer-box {
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--line);
+    }
+    .layer-box.l1 { background: #edf2f8; }
+    .layer-box.l2 { background: #e9f3ee; }
+    .layer-box.l3 { background: #f8eee6; }
+    .layer-box .tag {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      margin-bottom: .35rem;
+    }
+    .l1 .tag { color: var(--layer1); }
+    .l2 .tag { color: var(--layer2); }
+    .l3 .tag { color: var(--layer3); }
+    .arrow {
+      text-align: center;
+      color: var(--muted);
+      font-size: .85rem;
+      letter-spacing: 0;
+    }
+    .subs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .5rem;
+      margin-top: .7rem;
+    }
+    .sub {
+      background: #fff;
+      border: 1px dashed #b7cbbf;
+      border-radius: 8px;
+      padding: .5rem .55rem;
+      font-size: .78rem;
+    }
+    .sub strong { display: block; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: .7rem 0 1rem; table-layout: fixed; }
+    th, td {
+      border: 1px solid var(--line);
+      padding: .55rem .7rem;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: break-word;
+    }
+    table th:first-child,
+    table td:first-child {
+      width: 22%;
+      white-space: normal;
+      word-break: keep-all;
+    }
+    table th:last-child,
+    table td:last-child { width: 16%; word-break: keep-all; }
+    th { background: #efe7da; color: var(--accent); }
+    .fit { color: var(--ok); font-weight: 700; }
+    .mid { color: var(--warn); font-weight: 700; }
+    .bad { color: #8b2e1f; font-weight: 700; }
+    .callout {
+      background: #efe8d8;
+      border-left: 4px solid var(--accent-2);
+      padding: .85rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: .9rem 0 1rem;
+      font-size: .93rem;
+    }
+    .flow {
+      font-family: Consolas, "Cascadia Code", monospace;
+      background: #1c1915;
+      color: #f3eadc;
+      padding: 1rem 1.1rem;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-size: .82rem;
+      line-height: 1.55;
+      margin: .8rem 0 1rem;
+      white-space: pre;
+    }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: .82rem;
+      padding: 0 6vw 2.4rem;
+    }
+    @media screen and (max-width: 980px) {
+      .grid-3, .grid-2, .grid-5, .subs { grid-template-columns: 1fr; }
+    }
+    @page {
+      size: A4;
+      margin: 12mm 12mm 14mm 12mm;
+    }
+    @media print {
+      html, body {
+        background: #fff;
+        font-size: 10pt;
+        line-height: 1.55;
+      }
+      nav.toc { display: none; }
+      header.hero {
+        background: #ece4d6;
+        padding: 14px 16px 12px;
+        break-after: avoid;
+      }
+      header.hero .kicker { letter-spacing: .08em; }
+      header.hero h1 { font-size: 18pt; max-width: none; }
+      header.hero p.lead { font-size: 10.5pt; max-width: none; }
+      main, footer { max-width: none; padding: 10px 0 0; }
+      section {
+        break-inside: auto;
+        padding: 12px 14px 10px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+      }
+      h2 { font-size: 13pt; }
+      h3 { font-size: 11pt; }
+      .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+      .grid-2 { grid-template-columns: 1fr 1fr; }
+      .subs { grid-template-columns: repeat(5, 1fr); }
+      .card, .layer-box, .callout, .flow, tr { break-inside: avoid; }
+      .card p { margin-bottom: 0; }
+      table { font-size: 8.5pt; }
+      th, td { padding: .4rem .5rem; }
+      table th:first-child,
+      table td:first-child { width: 22%; white-space: normal; word-break: keep-all; }
+      .flow {
+        white-space: pre-wrap;
+        font-size: 8pt;
+        padding: .7rem .8rem;
+      }
+      .arrow { letter-spacing: 0; }
+      footer { font-size: 8pt; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="kicker">GSMultiAgent · Architecture Brief</div>
+    <h1>制导系统设计中的多智能体架构：现状、对照与扩展</h1>
+    <p class="lead">
+      本项目不是「多个大模型互相聊天」的扁平多智能体系统，而是一套
+      <strong>三层闭环 + Hermes 编排 + 工具隔离子智能体 + 规则先行的判断/反思</strong>
+      架构。自然语言负责决策路径，MATLAB 蒙特卡洛负责物理真值，PPO/专家调参负责连续参数搜索。
+      本文说明现在怎么用、为什么这样用，以及后面还能往哪长。
+    </p>
+    <div class="meta">
+      <span class="chip">入口 cli_agent.py</span>
+      <span class="chip">编排 Hermes Agent</span>
+      <span class="chip">优化 OptimizationWorkflow</span>
+      <span class="chip">仿真 monte_carlo_single.m</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <a href="#s1">问题形态</a>
+    <a href="#s2">架构全景</a>
+    <a href="#s3">角色与协议</a>
+    <a href="#s4">为何这样设计</a>
+    <a href="#s5">与其他架构对照</a>
+    <a href="#s6">当前使用层</a>
+    <a href="#s7">扩展层</a>
+    <a href="#s8">边界</a>
+  </nav>
+
+  <main>
+    <section id="s1">
+      <h2>1. 这个项目真正要协调的，不是「对话」，而是异质工作流</h2>
+      <p>
+        智能设计制导系统，一次任务至少要同时处理四类完全不同的工作：把自然语言工况变成 T/G/AP/R 实验设置；
+        必要时改 MATLAB 制导律结构；用蒙特卡洛给出命中率、SEP、PeakNy、PM、BW；再在 10 维连续参数空间里搜索。
+        这四件事的错误代价不一样：LLM 写错一句分析可以重来，MATLAB 语法错了仿真直接失败，指标判错会让 PPO 朝错误方向学。
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <h4>离散结构决策</h4>
+          <p>要不要改制导律（<code>MODIFY_LAW</code>），还是只调参（<code>TUNE_PARAMS</code>），或直接复用历史（<code>REUSE_HISTORY</code>）。这是符号/算法层。</p>
+        </div>
+        <div class="card">
+          <h4>连续参数搜索</h4>
+          <p>驾驶仪 <code>w/ζ/τ</code> 与制导 <code>N_pn</code>、<code>ny_lim</code>。这是数值优化层，不适合让 LLM 每次猜一组数。</p>
+        </div>
+        <div class="card">
+          <h4>硬约束验收</h4>
+          <p>五项指标必须全部过关。论文实验还要求可消融、可复现、可对齐 225 次 MC 预算。这是科学实验层。</p>
+        </div>
+      </div>
+      <div class="callout">
+        因此架构的核心命题是：<strong>把「会说话的模型」限制在决策与生成上，把「会算的引擎」放在仿真与优化上，用明确的角色边界防止幻觉进入验收环节。</strong>
+        单智能体把这四类工作塞进同一次 ReAct 循环，短期能跑通演示，但无法支撑论文里的分层消融，也无法保证指标判定不被语言模型改写。
+      </div>
+    </section>
+
+    <section id="s2">
+      <h2>2. 当前架构全景：三层闭环，而不是对等辩论</h2>
+      <p>
+        运行时主轴是 <code>cli_agent.py</code> 驱动的外层循环（默认最多 5 轮）。每一轮先走 Layer 2 生成或复用脚本并仿真，
+        再把脚本与初始指标交给 Layer 3。Layer 3 只在「尚未全部达标」时做 Expert / PPO / CLS，最后由反思给出
+        <code>done / tune_params / modify_law</code>，反馈回下一轮。
+      </p>
+
+      <div class="arch">
+        <div class="layer-box l1">
+          <div class="tag">LAYER 1 · 交互与主循环</div>
+          <strong>cli_agent.py</strong>
+          解析自然语言任务与 T/G/AP/R 工况，初始化 RAG / 经验库 / Hermes / 优化工作流，驱动外层迭代，处理中断菜单与最终报告。
+          规划器 <code>IntelligentTaskPlanner</code> 在进入 Hermes 之前选定执行模式。
+        </div>
+        <div class="arrow">▼ 脚本路径 + 工况 + 上一轮建议</div>
+        <div class="layer-box l2">
+          <div class="tag">LAYER 2 · Hermes 纯编排器</div>
+          <strong>不自己做 RL。</strong> 两种动作：直接调工具，或 <code>call_specialist(agent_type, task, context)</code> 委托子智能体。
+          子智能体靠<strong>工具白名单隔离</strong>，防止递归和串工具。MODIFY_LAW 推荐链：检索 → 生成/校验 → 仿真 → 判断。
+          <div class="subs">
+            <div class="sub"><strong>rag_agent</strong>知识检索</div>
+            <div class="sub"><strong>matlab_agent</strong>生成 / 语法 / 适配性</div>
+            <div class="sub"><strong>sim_agent</strong>跑蒙特卡洛</div>
+            <div class="sub"><strong>analysis_agent</strong>判断与经验库</div>
+            <div class="sub"><strong>memory_agent</strong>长期记忆读写</div>
+          </div>
+        </div>
+        <div class="arrow">▼ script_path + 初始五项指标</div>
+        <div class="layer-box l3">
+          <div class="tag">LAYER 3 · 优化工作流（async）</div>
+          <strong>OptimizationWorkflow</strong>：若 Layer 2 已全部达标，可跳过 RL，只做终检与回写。
+          否则走 Expert 调参 → PPO（10 维）→ 约束局部搜索 CLS → 单指标收尾。
+          <code>JudgmentAgent</code> 在新最优出现时做规则验收；<code>ReflectionAgent</code> 做路径决策，不替代数值门。
+        </div>
+      </div>
+
+      <h3>和「多智能体」常见想象的差别</h3>
+      <ul>
+        <li><strong>有中心，但中心很薄。</strong> Hermes 是调度器，不是领域专家，也不掌握仿真真值。</li>
+        <li><strong>有记忆，但记忆分库。</strong> RAG 存知识，ParameterExperience 存参数，agent_memory 存情节，互不替代。</li>
+        <li><strong>有辩论空间，但验收不投票。</strong> 五项指标用规则 AND，任一 NG 即未完成；LLM 不能把 4/5 说成通过。</li>
+        <li><strong>有循环，但预算封顶。</strong> 外层 ≤5，等预算对照上限 75 候选 / 225 次开发集 MC。</li>
+      </ul>
+    </section>
+
+    <section id="s3">
+      <h2>3. 角色、数据协议与一次任务怎么走完</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>角色</th>
+            <th>实现</th>
+            <th>输入</th>
+            <th>输出 / 权限边界</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>主循环</td>
+            <td><code>cli_agent.py</code></td>
+            <td>prompt、config、消融开关</td>
+            <td>何时开下一轮；不直接改参数</td>
+          </tr>
+          <tr>
+            <td>任务规划</td>
+            <td><code>IntelligentTaskPlanner</code></td>
+            <td>自然语言 + 工况参考</td>
+            <td>REUSE / TUNE / MODIFY；可拆子任务</td>
+          </tr>
+          <tr>
+            <td>编排器</td>
+            <td>Hermes <code>AIAgent</code></td>
+            <td>规划结果 + 上一轮建议</td>
+            <td>工具调用或委托；看不到 PPO 内部状态</td>
+          </tr>
+          <tr>
+            <td>五类专家</td>
+            <td><code>SpecializedSubAgent</code></td>
+            <td>结构化 <code>AgentMessage</code></td>
+            <td>强制 JSON 块；只能看见本角色工具</td>
+          </tr>
+          <tr>
+            <td>判断</td>
+            <td><code>JudgmentAgent</code></td>
+            <td>仿真指标 + 任务要求</td>
+            <td>satisfied 仅当五项全 OK；规则优先</td>
+          </tr>
+          <tr>
+            <td>反思</td>
+            <td><code>ReflectionAgent</code></td>
+            <td>指标、历史、脚本片段</td>
+            <td>needs_optimization、next_action、建议文本</td>
+          </tr>
+          <tr>
+            <td>优化后端</td>
+            <td><code>optimizer_registry</code></td>
+            <td>同一仿真评估器</td>
+            <td>可换 hybrid_ppo / direct_ppo / CMA / random</td>
+          </tr>
+          <tr>
+            <td>物理真值</td>
+            <td>MATLAB / Octave</td>
+            <td><code>monte_carlo_single.m</code> + RL_PARAMS</td>
+            <td>五项指标；不被 LLM 改写</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>子智能体之间怎么传数据</h3>
+      <p>
+        不用共享黑板乱写。编排器用 <code>context</code> 把上一步 JSON 传给下一步。每个子智能体必须在回复末尾给出
+        <code>```json ... ```</code>，Hermes 从中抽取 <code>script_path</code>、<code>satisfied</code> 等字段。
+        这是为了让「MATLAB 路径、仿真数字、是否达标」成为机器可读契约，而不是一段散文。
+      </p>
+      <div class="flow">任务 prompt
+  → Planner 选定 TUNE_PARAMS / MODIFY_LAW / REUSE_HISTORY
+  → Hermes：rag_agent → matlab_agent → sim_agent → analysis_agent
+  → 若五项已过：Layer3 只终检 + 经验回写
+  → 若未过：Expert / PPO / CLS（判断可早停）
+  → Reflection：done 结束；否则 next_action 回到 Layer1
+  → 达 max_iterations 或预算耗尽则强制收工，输出当前最优</div>
+
+      <h3>三种设计路径，对应三种「智能体参与深度」</h3>
+      <div class="grid-3">
+        <div class="card l1">
+          <h4>REUSE_HISTORY</h4>
+          <p>历史参数已够用。Layer 2 几乎不改算法，Layer 3 可以很轻。多智能体成本最低。</p>
+        </div>
+        <div class="card l2">
+          <h4>TUNE_PARAMS</h4>
+          <p>结构不动，只搜 10 维参数。这是论文主路径：LLM 诊断瓶颈，数值优化器负责搜索。</p>
+        </div>
+        <div class="card l3">
+          <h4>MODIFY_LAW</h4>
+          <p>要改 <code>gf()</code> 数学结构。必须走检索—生成—语法—适配性—仿真。T4 等高过载工况才更常触发。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s4">
+      <h2>4. 为什么使用这套架构：六条设计原则</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h4>1. 编排与优化解耦</h4>
+          <p>
+            RL 不进 Hermes 工具集。否则一次超长蒙特卡洛会卡在编排器超时里，而且消融「去 RL」会拆不动编排层。
+            论文要证明的是「闭环设计框架」，不是「把 PPO 塞进聊天工具」。
+          </p>
+        </div>
+        <div class="card">
+          <h4>2. 工具隔离，而不是人设隔离</h4>
+          <p>
+            子智能体不是再开五个不受控的大模型会话，而是同一套 Hermes 上限制可见工具。
+            检索智能体调不到 <code>run_simulation</code>，仿真智能体也改不了知识库。这降低串工具、递归委托和上下文污染。
+          </p>
+        </div>
+        <div class="card">
+          <h4>3. 规则验收，LLM 只解释</h4>
+          <p>
+            制导指标是硬门：命中率、SEP、过载、相位裕度、带宽。判断智能体先做数值 AND，通过才考虑早停。
+            反思负责「下一步改结构还是改参数」，不能把未达标说成达标。
+          </p>
+        </div>
+        <div class="card">
+          <h4>4. 快路径与完整路径并存</h4>
+          <p>
+            T4 可跳过 Hermes 直接 generate→语法→仿真→判断；Layer 2 已满足则可跳过 PPO。
+            架构允许「贵的智能体只在高不确定性时出场」，这是工程可行性，不是理论上的纯粹多智能体。
+          </p>
+        </div>
+        <div class="card">
+          <h4>5. 消融必须能拔插件</h4>
+          <p>
+            <code>config.yaml</code> 的 ablation 开关对应适配性、语法、RL、经验库、记忆、反思、外层轮次。
+            如果所有能力糊在一个 Agent 的 prompt 里，第 4.2 节消融在方法上就不成立。
+          </p>
+        </div>
+        <div class="card">
+          <h4>6. 同一评估器，可换搜索算法</h4>
+          <p>
+            Layer 3 后端走注册表：hybrid PPO、Direct PPO、CMA-ES、随机搜索共用仿真评估接口。
+            这让「多智能体框架」和「优化器对照」成为同一套尺子上的不同插件，而不是两套程序。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s5">
+      <h2>5. 与其他架构相比，为什么更适合本项目</h2>
+      <p>
+        对照对象按「本仓库已经跑过的」和「领域里常见的」分开。单智能体 Hermes（SAH）、Direct PPO、CMA-ES、随机搜索
+        都已作为等预算基线存在；下面同时解释为什么主系统不采用那些更「纯」的多智能体风格。
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>架构</th>
+            <th>它擅长什么</th>
+            <th>用在本项目会怎样</th>
+            <th>适合度</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>单智能体 ReAct<br/>（本仓库 SAH）</td>
+            <td>实现快，工具全在一个上下文里</td>
+            <td>能调参、能仿真，但去掉了分层委托、反思诊断和 Hermes 记忆注入。n10 对齐后开发集/测试集 12/12，说明<strong>搜索本身很强</strong>；但它无法回答「哪一层贡献了什么」，也无法安全地改制导律结构。主系统要的是可解释闭环，不是单纯最高可行率。</td>
+            <td class="mid">基线合适<br/>主系统不够</td>
+          </tr>
+          <tr>
+            <td>纯数值优化<br/>Random / CMA / PPO</td>
+            <td>连续参数空间、预算清晰</td>
+            <td>不会写 MATLAB、不会选 MODIFY_LAW、不会读知识库。适合 Table 5 对照，不能单独承担「智能设计」。</td>
+            <td class="mid">对照层合适</td>
+          </tr>
+          <tr>
+            <td>扁平辩论<br/>AutoGen / 圆桌投票</td>
+            <td>开放问题、方案发散</td>
+            <td>仿真昂贵，辩论轮次会把 MC 预算打爆；指标真值会被「说得通」的文本稀释。制导约束不是多数表决问题。</td>
+            <td class="bad">不适合主环</td>
+          </tr>
+          <tr>
+            <td>纯 Supervisor–Worker<br/>（LangGraph 风格）</td>
+            <td>状态机清晰、可恢复</td>
+            <td>思想上接近本项目。差别是：本项目把 Worker 做成<strong>工具子集</strong>而不是独立图节点，并把最贵的 PPO 放在编排图外面。若整段 PPO 也进图，超时与消融都会变难。</td>
+            <td class="fit">近邻，但本项目更省</td>
+          </tr>
+          <tr>
+            <td>无反思流水线 DAG</td>
+            <td>一次生成、一次仿真、结束</td>
+            <td>无法处理「结构错了还是参数错了」。T4 过载超限需要在 TUNE 与 MODIFY 之间切换。没有外层闭环就没有设计路径。</td>
+            <td class="bad">只适合演示</td>
+          </tr>
+          <tr>
+            <td>全 LLM 调参<br/>（让模型直接给 w1…）</td>
+            <td>少写优化器</td>
+            <td>10 维、带物理边界、要上百次 MC。LLM 采样效率远低于 PPO/CMA，且不可复现随机种子协议。</td>
+            <td class="bad">不适合搜索层</td>
+          </tr>
+          <tr>
+            <td>本项目：分层编排闭环</td>
+            <td>异构任务 + 硬约束 + 可消融 + 可换优化器</td>
+            <td>自然语言走规划与生成，仿真走 MATLAB，搜索走注册表，验收走规则。每一层都可以单独关掉做实验。</td>
+            <td class="fit">主系统</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        适合度的判据不是「智能体数量最多」，而是三件事同时成立：
+        <strong>(1) 仿真真值不被语言模型覆盖；(2) 结构修改与参数搜索可分开消融；(3) 后面加新专家/新优化器时不必重写主循环。</strong>
+      </div>
+    </section>
+
+    <section id="s6">
+      <h2>6. 当前使用层：这套架构已经在支撑什么</h2>
+      <h3>6.1 主系统工作流</h3>
+      <ul>
+        <li>论文主方法 GSMultiAgent：Layer1 解析 → Layer2 编排/生成/仿真 → Layer3 优化与反思。</li>
+        <li>外层上限 5 轮；记忆复用与约束满足后可以早停，因此表上 GSM 的 MC 常是 1 / 7 / 22，而不是搜满 225。</li>
+        <li>设计路径被记录为 <code>first_pass</code> / <code>TUNE_PARAMS</code> / <code>MODIFY_LAW</code>，用于解释「为什么有的格子首轮就停、有的还继续」。</li>
+      </ul>
+      <h3>6.2 科学实验已经利用的模块边界</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4>组件消融（第 4.2 节）</h4>
+          <p>去适配性、去语法、去 RL、去经验库、去记忆、单轮迭代。若没有分层，这些开关只能变成「改 prompt」，审稿无法复现。</p>
+        </div>
+        <div class="card">
+          <h4>优化器对照（第 4.3 节）</h4>
+          <p>同一 225 次 MC 上限下比较 Random、CMA-ES、Direct PPO、单智能体 Hermes 与完整 GSM。架构把「框架」和「搜索算法」拆开，对照才合法。</p>
+        </div>
+        <div class="card">
+          <h4>校正管线</h4>
+          <p>语法检查、适配性证明、T4 快路径、BW 收尾。这些是 Layer2/Layer3 的可插拔策略，不是新开一套 Agent 框架。</p>
+        </div>
+        <div class="card">
+          <h4>人机协同已预留</h4>
+          <p>Ctrl+C 菜单可改指令、晋升记忆、继续或退出。说明 Layer1 被有意做成「可打断的实验驾驶舱」，而不只是批处理脚本。</p>
+        </div>
+      </div>
+      <h3>6.3 当前架构已经暴露出的使用纪律</h3>
+      <ul>
+        <li>表上 GSM / SAH 的 <code>first_success</code> 是<strong>最终开发集可行</strong>，不是「第一轮成功就停」。</li>
+        <li>基线第一次可行只是 JSON 历史里的书签；为了等预算，它们会继续搜满。</li>
+        <li>LLM 顾问默认倾向继续优化。这是能力，也是成本来源：架构允许早停，但不把「第一次可行」当成唯一目标。</li>
+      </ul>
+    </section>
+
+    <section id="s7">
+      <h2>7. 扩展层：以后往哪长，而不必推翻骨架</h2>
+      <p>扩展应沿着现有缝隙加插件。下面按「改动半径从小到大」排列。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>扩展方向</th>
+            <th>挂载点</th>
+            <th>为什么现有架构接得住</th>
+            <th>注意</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>新工况 / 新指标</td>
+            <td>任务要求解析 + <code>JudgmentAgent</code> 规则 + MATLAB 输出字段</td>
+            <td>判断合同已经是「任务里写到的指标必须全过」。加 G 类几何、AP 退化，不必改 Hermes。</td>
+            <td>先改仿真契约，再改规则，最后才动 LLM 提示。</td>
+          </tr>
+          <tr>
+            <td>新优化算法</td>
+            <td><code>optimizer_registry</code></td>
+            <td>已有 hybrid_ppo / direct_ppo / cma_es / random_search。贝叶斯优化、差分进化可按同一评估器接入。</td>
+            <td>必须遵守同一候选预算，否则又和 GSM 不对齐。</td>
+          </tr>
+          <tr>
+            <td>新子智能体</td>
+            <td><code>SUB_AGENT_CONFIGS</code> + 工具白名单</td>
+            <td>例如气动辨识、弹目几何检查、报告撰写。只要输出强制 JSON，就能插入 MODIFY_LAW 链。</td>
+            <td>不要给子智能体注册对方的工具名，避免全局注册表冲突。</td>
+          </tr>
+          <tr>
+            <td>新知识源</td>
+            <td><code>knowledge_base/</code> + RAG 工具</td>
+            <td>检索智能体与生成智能体已解耦。换文档不必换优化器。</td>
+            <td>保持「检索结果进 context、不直接改指标」。</td>
+          </tr>
+          <tr>
+            <td>更强的结构搜索</td>
+            <td>MODIFY_LAW + 适配性证明</td>
+            <td>结构修改已从调参路径分出。可加程序综合、模板库枚举，仍由仿真验收。</td>
+            <td>结构搜索极贵，必须有独立预算，不能混进 225 次参数 MC。</td>
+          </tr>
+          <tr>
+            <td>多人/多机</td>
+            <td>Layer1 任务队列 + 经验库</td>
+            <td>PE 与 RAG 已是外部存储。Windows / Ubuntu 双机实验已经按目录同步结果。</td>
+            <td>不要让两台机器写同一份未加锁经验库。</td>
+          </tr>
+          <tr>
+            <td>在线/硬件在环</td>
+            <td>把 <code>sim_agent</code> 的仿真后端换成 HIL 接口</td>
+            <td>Layer 2 只依赖「跑完返回五项指标」的工具合同。</td>
+            <td>时序与安全互锁必须放在仿真适配器，不要放进 LLM。</td>
+          </tr>
+          <tr>
+            <td>换成别的编排内核</td>
+            <td><code>hermes_integration.py</code> 适配层</td>
+            <td>主循环并不绑定 Hermes 的对话格式；缺 Hermes 时 CLI 仍可完成 Step 1。理论上可换 LangGraph，但要重做工具隔离。</td>
+            <td>值得换的前提是：超时、子智能体隔离、JSON 契约能等价实现。</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>扩展时建议遵守的分层纪律</h3>
+      <ol>
+        <li><strong>真值向下沉。</strong> 新指标先出现在 MATLAB，再进入判断规则，最后才进入反思提示词。</li>
+        <li><strong>搜索可替换。</strong> 新算法进注册表，不进 Hermes 工具列表。</li>
+        <li><strong>专家可增加。</strong> 新专家只拿自己的工具子集，用 JSON 与上下游衔接。</li>
+        <li><strong>预算单列。</strong> 结构搜索、网格扫描、硬件试验不要偷偷占用论文里的 225 次开发集 MC。</li>
+        <li><strong>消融先行。</strong> 新模块必须能在 <code>config.yaml</code> 关掉，否则无法写进下一轮实验。</li>
+      </ol>
+    </section>
+
+    <section id="s8">
+      <h2>8. 这套架构的边界：什么时候不该再加 Agent</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h4>已经足够模块化的部分</h4>
+          <ul>
+            <li>参数搜索：用注册表，不要再包一层「优化讨论组」。</li>
+            <li>指标验收：继续规则 AND，不要改成投票。</li>
+            <li>等预算对照：保持同一评估器，避免每个 Agent 自己数 MC。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>继续加 Agent 只会变差的情况</h4>
+          <ul>
+            <li>为了「看起来更智能」让多个模型复述同一组仿真数字。</li>
+            <li>把 PPO 每一步都交给 LLM 批准，墙钟和随机性都会失控。</li>
+            <li>让子智能体互相递归 <code>call_specialist</code>，工具隔离就被打穿。</li>
+          </ul>
+        </div>
+      </div>
+      <p>
+        <strong>GSMultiAgent 的多智能体，是面向制导设计工作流的分层控制系统，不是通用聊天应用。</strong>
+        它适合本项目，是因为项目的困难在于「语言、代码、物理仿真、数值搜索」必须同时正确；
+        分层之后，每一层都可以被实验证明、被替换、被扩展。
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    依据仓库当前实现整理：<code>cli_agent.py</code>、<code>multi_agent/integration/</code>、<code>optimization_workflow.py</code>、
+    <code>optimizer_registry.py</code>、<code>config.yaml</code>、<code>README.md</code>。
+    文件位置 <code>docs/multi_agent_architecture.html</code>。
+  </footer>
+</body>
+</html>

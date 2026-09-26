@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Internal Block Diagram Reference -->
+<SysML xmlns="http://www.omg.org/spec/SysML/20190109/SysML">
+  
+  <package name="{model_name}">
+    <block name="InterceptorAssembly">
+    
+    <part name="sensor" type="TargetTracker"/>
+    <part name="guidance" type="GuidanceController"/>
+    <part name="actuator" type="ControlActuator"/>
+    <part name="plant" type="MissilePlant"/>
+    
+    <!-- Signal Flows -->
+    <connector>
+      <source part="sensor"/>
+      <target part="guidance"/>
+    </connector>
+    
+    <connector>
+      <source part="guidance"/>
+      <target part="actuator"/>
+    </connector>
+    
+    <connector>
+      <source part="actuator"/>
+      <target part="plant"/>
+    </connector>
+    
+    <connector>
+      <source part="plant"/>
+      <target part="sensor"/>
+    </connector>
+    
+  </block>
+  </package>
+  
+</SysML>

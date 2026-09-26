@@ -1,0 +1,17 @@
+\begin{tabular}{lccccc}
+\hline
+Method & First success$^{\mathrm{a}}$ & Dev feasible & Test feasible & MC calls (dev)$^{\mathrm{b}}$ & Cap \\
+\hline
+GSMultiAgent (E0) & 9/12 & 9/12 & 5/12 & 1--22 & 225 \\
+Random Search & 8/12 & 8/12 & 8/12 & 225 & 225 \\
+CMA-ES & 12/12 & 12/12 & 12/12 & 225 & 225 \\
+Direct PPO & 11/12 & 11/12 & 11/12 & 225 & 225 \\
+Single-Agent Hermes$^{\mathrm{c}}$ & 12/12 & 12/12 & 12/12 & 135--225 & 225 \\
+\hline
+\end{tabular}
+
+{\raggedright\footnotesize
+$^{\mathrm{a}}$GSMultiAgent and the standalone optimizers: final development feasibility (not first outer iteration).
+$^{\mathrm{b}}$Shared 225 ceiling. Baselines: 75 candidates $\times$ 3 real MATLAB seeds. GSMultiAgent 1--22: outer-loop derived, typically one real seed + bootstrap. Search width 10 trajectories; test 100.
+$^{\mathrm{c}}$Single-Agent Hermes realigned to the same search width and first-success definition (`optimizer_equal_mc_75_sah_n10`; three real MATLAB seeds per candidate).
+\par}

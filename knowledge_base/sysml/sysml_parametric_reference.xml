@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Parametric Model Reference for Guidance System -->
+<SysML xmlns="http://www.omg.org/spec/SysML/20190109/SysML">
+  
+  <package name="{model_name}">
+    <block name="GuidanceEquations">
+    <!-- Navigation Law: a = N * v_c / t_go -->
+    <constraint name="navigationEquation">
+      <ownedAttribute name="N" type="Real" value="{navigation_coefficient}"/>
+      <ownedAttribute name="v_c" type="Real"/>
+      <ownedAttribute name="t_go" type="Real"/>
+      <ownedAttribute name="acceleration" type="Real"/>
+    </constraint>
+    
+    <!-- Damping: F_d = -c * v -->
+    <constraint name="dampingEquation">
+      <ownedAttribute name="c" type="Real" value="{damping_ratio}"/>
+      <ownedAttribute name="velocity" type="Real"/>
+      <ownedAttribute name="force" type="Real"/>
+    </constraint>
+    
+    <!-- Miss Distance Calculation -->
+    <constraint name="missDistanceEquation">
+      <ownedAttribute name="finalPosition" type="Vector3D"/>
+      <ownedAttribute name="targetPosition" type="Vector3D" value="({target_position_0}, {target_position_1}, {target_position_2})"/>
+      <ownedAttribute name="missDistance" type="Real"/>
+    </constraint>
+  </block>
+  </package>
+  
+</SysML>

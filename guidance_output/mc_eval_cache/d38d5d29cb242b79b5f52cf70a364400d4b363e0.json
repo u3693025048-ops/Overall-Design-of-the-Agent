@@ -1,0 +1,60 @@
+{
+"hit_rate": 95.0,
+"SEP": 3.0,
+"peak_nz": 5.0,
+"peak_ny": 5.0,
+"PM": 55.0,
+"BW": 40.0,
+"miss_distances": [],
+"nz_peaks": [],
+"feasible": true,
+"constraint_violations": {},
+"sim_time_sec": 0.02,
+"wall_time_sec": 8.189999971364159e-05,
+"success": true,
+"error": null,
+"error_msg": null,
+"mc_calls": 2,
+"mc_seeds": [
+1,
+2
+],
+"seed_results": [
+{
+"hit_rate": 95.0,
+"SEP": 3.0,
+"peak_nz": 5.0,
+"PM": 55.0,
+"BW": 40.0,
+"feasible": true,
+"constraint_violations": {},
+"sim_time_sec": 0.01,
+"success": true,
+"error": null,
+"error_msg": null,
+"mc_seed": 1,
+"split": "dev",
+"synthetic": false
+},
+{
+"hit_rate": 95.0,
+"SEP": 3.0,
+"peak_nz": 5.0,
+"PM": 55.0,
+"BW": 40.0,
+"feasible": true,
+"constraint_violations": {},
+"sim_time_sec": 0.01,
+"success": true,
+"error": null,
+"error_msg": null,
+"mc_seed": 2,
+"split": "dev",
+"synthetic": false
+}
+],
+"and_logic": true,
+"mc_and_workers": 1,
+"bootstrap_fill": false,
+"from_cache": false
+}

@@ -1,0 +1,281 @@
+{
+  "protocol": {
+    "scenarios": [
+      "T1",
+      "T2",
+      "T3",
+      "T4"
+    ],
+    "master_seeds": [
+      42,
+      43,
+      44
+    ],
+    "seed_protocol": "master_seed * 100 + offsets",
+    "dev_offsets": [
+      1,
+      2,
+      3
+    ],
+    "test_offsets": [
+      4,
+      5,
+      6
+    ],
+    "seed_manifest": {
+      "42": {
+        "dev": [
+          4201,
+          4202,
+          4203
+        ],
+        "test": [
+          4204,
+          4205,
+          4206
+        ]
+      },
+      "43": {
+        "dev": [
+          4301,
+          4302,
+          4303
+        ],
+        "test": [
+          4304,
+          4305,
+          4306
+        ]
+      },
+      "44": {
+        "dev": [
+          4401,
+          4402,
+          4403
+        ],
+        "test": [
+          4404,
+          4405,
+          4406
+        ]
+      }
+    },
+    "and_logic": "all three dev seeds must pass; all three test seeds must pass",
+    "n_runs_per_mc_call": 100,
+    "iterations": 5,
+    "metric_requirements": {
+      "hit_rate_min": 92.0,
+      "sep_max": 7.0,
+      "peak_ny_max": 20.0,
+      "peak_ny_mean_max": 20.0,
+      "pm_min": 45.0,
+      "pm_max": 70.0,
+      "bw_min": 20.0,
+      "bw_max": 85.0
+    },
+    "search_dim": 10,
+    "search_space_source": "multi_agent.rl.matlab_rl_optimizer.ALL_TUNABLE_PARAM_SPECS"
+  },
+  "commands": [
+    {
+      "section": "optimizer",
+      "name": "optimizer_baselines_43",
+      "command": [
+        "C:\\Python314\\python.exe",
+        "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\experiments\\optimizer_baselines_43.py",
+        "--methods",
+        "random_search",
+        "cma_es",
+        "direct_ppo",
+        "--scenarios",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "--master-seeds",
+        "42",
+        "43",
+        "44",
+        "--iterations",
+        "5",
+        "--n-runs",
+        "100",
+        "--output-dir",
+        "results\\experiment_plan\\optimizer_baselines_43"
+      ],
+      "output": "results\\experiment_plan\\optimizer_baselines_43",
+      "notes": "Raw optimizer loops only; no Hermes, memory, RAG, or reflection."
+    },
+    {
+      "section": "memory",
+      "name": "memory_ablation",
+      "command": [
+        "C:\\Python314\\python.exe",
+        "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\experiments\\experiment_plan_runner.py",
+        "run-gsm-suite",
+        "--suite",
+        "memory",
+        "--scenarios",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "--master-seeds",
+        "42",
+        "43",
+        "44",
+        "--iterations",
+        "5",
+        "--n-runs",
+        "100",
+        "--output-csv",
+        "results\\experiment_plan\\ablation_memory.csv"
+      ],
+      "output": "results\\experiment_plan\\ablation_memory.csv",
+      "notes": "Add --execute to run; without it this command writes the GSM suite protocol only."
+    },
+    {
+      "section": "optimization",
+      "name": "optimization_ablation",
+      "command": [
+        "C:\\Python314\\python.exe",
+        "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\experiments\\experiment_plan_runner.py",
+        "run-gsm-suite",
+        "--suite",
+        "optimization",
+        "--scenarios",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "--master-seeds",
+        "42",
+        "43",
+        "44",
+        "--iterations",
+        "5",
+        "--n-runs",
+        "100",
+        "--output-csv",
+        "results\\experiment_plan\\ablation_optimization.csv"
+      ],
+      "output": "results\\experiment_plan\\ablation_optimization.csv",
+      "notes": "Add --execute to run; without it this command writes the GSM suite protocol only."
+    },
+    {
+      "section": "correction",
+      "name": "correction_ablation",
+      "command": [
+        "C:\\Python314\\python.exe",
+        "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\experiments\\experiment_plan_runner.py",
+        "run-gsm-suite",
+        "--suite",
+        "correction",
+        "--scenarios",
+        "T4",
+        "--master-seeds",
+        "42",
+        "43",
+        "44",
+        "--iterations",
+        "5",
+        "--n-runs",
+        "100",
+        "--output-csv",
+        "results\\experiment_plan\\ablation_correction.csv"
+      ],
+      "output": "results\\experiment_plan\\ablation_correction.csv",
+      "notes": "Add --execute to run; without it this command writes the GSM suite protocol only."
+    },
+    {
+      "section": "order",
+      "name": "order_ablation_forward",
+      "command": [
+        "C:\\Python314\\python.exe",
+        "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\experiments\\experiment_plan_runner.py",
+        "run-gsm-suite",
+        "--suite",
+        "order",
+        "--order",
+        "forward",
+        "--scenarios",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "--master-seeds",
+        "42",
+        "43",
+        "44",
+        "--iterations",
+        "5",
+        "--n-runs",
+        "100",
+        "--output-csv",
+        "results\\experiment_plan\\ablation_order_forward.csv"
+      ],
+      "output": "results\\experiment_plan\\ablation_order_forward.csv",
+      "notes": "Add --execute to run this task-order robustness suite."
+    },
+    {
+      "section": "order",
+      "name": "order_ablation_reverse",
+      "command": [
+        "C:\\Python314\\python.exe",
+        "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\experiments\\experiment_plan_runner.py",
+        "run-gsm-suite",
+        "--suite",
+        "order",
+        "--order",
+        "reverse",
+        "--scenarios",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "--master-seeds",
+        "42",
+        "43",
+        "44",
+        "--iterations",
+        "5",
+        "--n-runs",
+        "100",
+        "--output-csv",
+        "results\\experiment_plan\\ablation_order_reverse.csv"
+      ],
+      "output": "results\\experiment_plan\\ablation_order_reverse.csv",
+      "notes": "Add --execute to run this task-order robustness suite."
+    },
+    {
+      "section": "order",
+      "name": "order_ablation_shuffled",
+      "command": [
+        "C:\\Python314\\python.exe",
+        "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\experiments\\experiment_plan_runner.py",
+        "run-gsm-suite",
+        "--suite",
+        "order",
+        "--order",
+        "shuffled",
+        "--scenarios",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "--master-seeds",
+        "42",
+        "43",
+        "44",
+        "--iterations",
+        "5",
+        "--n-runs",
+        "100",
+        "--output-csv",
+        "results\\experiment_plan\\ablation_order_shuffled.csv"
+      ],
+      "output": "results\\experiment_plan\\ablation_order_shuffled.csv",
+      "notes": "Add --execute to run this task-order robustness suite."
+    }
+  ]
+}

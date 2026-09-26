@@ -1,0 +1,73 @@
+{
+  "pulled_at": "2026-08-23 06:40:58",
+  "host": "10.13.11.221",
+  "remote": "/home/admcai/workspace/GSMultiAgent13-V0.3",
+  "pulled_n": 16,
+  "skipped_old_sah": "E:\\Chj_projects\\Papers\\GSMultiAgent13-V0.3\\results\\experiment_plan\\optimizer_equal_mc_75_sah",
+  "pulled": [
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/protocol.json",
+      "bytes": 1737
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T1_single_agent_hermes_seed42.json",
+      "bytes": 26311
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T1_single_agent_hermes_seed43.json",
+      "bytes": 35163
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T1_single_agent_hermes_seed44.json",
+      "bytes": 30553
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T2_single_agent_hermes_seed42.json",
+      "bytes": 34829
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T2_single_agent_hermes_seed43.json",
+      "bytes": 34997
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T2_single_agent_hermes_seed44.json",
+      "bytes": 35049
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T3_single_agent_hermes_seed42.json",
+      "bytes": 34955
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T3_single_agent_hermes_seed43.json",
+      "bytes": 35090
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T3_single_agent_hermes_seed44.json",
+      "bytes": 34844
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T4_single_agent_hermes_seed42.json",
+      "bytes": 35461
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T4_single_agent_hermes_seed43.json",
+      "bytes": 31266
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs/T4_single_agent_hermes_seed44.json",
+      "bytes": 26511
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/runs.csv",
+      "bytes": 4733
+    },
+    {
+      "rel": "results/experiment_plan/optimizer_equal_mc_75_sah_n10/summary_table7.csv",
+      "bytes": 783
+    },
+    {
+      "rel": "logs/ubuntu_sah_n10_20260822_214557.txt",
+      "bytes": 166237
+    }
+  ]
+}
