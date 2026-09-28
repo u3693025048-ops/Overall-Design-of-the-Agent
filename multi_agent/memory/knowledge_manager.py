@@ -138,14 +138,15 @@ class KBHybrid:
     def rebuild(self, from_chroma: bool = True) -> int:
         """重建 BM25 语料。
 
-        from_chroma=True 且向量库可用 → 以 Chroma 为权威来源；
-        否则（纯 BM25 模式 / chromadb 不可用）→ 从本地 jsonl 语料恢复，
-        保证无向量时检索依然可用。
+        BM25 语料以本地 jsonl 为唯一权威来源，绝不调用 chroma.get()——
+        chroma 0.5.x 的 Rust 内核在部分 Windows 上 collection.get() 会原生
+        access violation（不可被 try/except 捕获，直接拖死进程）。向量库仅用于
+        混合检索的 query/upsert，不参与 BM25 重建。
+
+        播种时本地 jsonl 与 chroma 同步写入，故本地语料始终是最新镜像。
         """
-        if from_chroma and self.rag_kb._collection is not None:
-            self._corpus = self._sync_get_all()
-        elif not self._corpus and self.corpus_path.exists():
-            self._load_corpus()          # 无向量模式的关键路径：从磁盘恢复语料
+        if not self._corpus and self.corpus_path.exists():
+            self._load_corpus()          # 从磁盘恢复语料（纯 BM25 与向量模式通用）
         self._rebuild_bm25()
         self._save_corpus()
         return len(self._corpus)
@@ -438,12 +439,16 @@ class KnowledgeManager:
                 ok = await asyncio.wait_for(self.rag_kb.initialize(), timeout=60.0)
             except asyncio.TimeoutError:
                 logger.error(
-                    "知识库初始化超时（embedding/Chroma 连接超时）。Web 端仍启动，检索为空。"
+                    "知识库初始化超时（embedding/Chroma 连接超时）。降级为纯 BM25。"
                 )
-                return False
+                ok = False
             if not ok:
-                return False
-        self.hybrid.rebuild(from_chroma=True)
+                # 向量不可用（chromadb 未装/导入失败/embedding 不可达）→ 降级纯 BM25，
+                # 从本地 jsonl 恢复语料，保证管理端仍可检索，而非返回空。
+                n = self.hybrid.rebuild(from_chroma=False)
+                logger.warning("向量检索不可用，已降级为纯 BM25（语料 %s 篇）。", n)
+                return True
+        self.hybrid.rebuild(from_chroma=False)
         return True
 
     # ── 四库播种 ────────────────────────────────────────────────────────────
@@ -856,6 +861,9 @@ class KnowledgeManager:
 
     async def stats(self) -> Dict[str, Any]:
         base = await self.rag_kb.get_statistics()
+        # vector_doc_count 取 chroma 侧真实数量（get_statistics 来自集合 count）；
+        # 纯 BM25 模式下集合为 None，get_statistics 返回 {"total_documents": 0} → 0。
+        vector_doc_count = base.get("total_documents", 0) or 0
         by_lib, by_level, by_case = {}, {}, {}
         for c in self.hybrid._corpus:
             m = c.get("metadata", {}) or {}
@@ -865,7 +873,8 @@ class KnowledgeManager:
         base.update({
             "by_lib": by_lib, "by_level": by_level, "by_case": by_case,
             # 无向量模式下 BM25 语料即为权威总数，避免前端显示 0 篇
-            "total_documents": len(self.hybrid._corpus) or base.get("total_documents", 0),
+            "total_documents": len(self.hybrid._corpus) or vector_doc_count,
+            "vector_doc_count": vector_doc_count,
             "vector_enabled": bool(self.vector_enabled),
         })
         return base

@@ -40,6 +40,76 @@ class RAGConfig:
 _MAX_EMBED_CHARS = 6000
 
 
+class OpenAICompatibleEmbeddingFunction:
+    """自实现的 OpenAI 兼容 Embedding 函数（标准库 urllib，零 openai 依赖）。
+
+    chromadb 调用约定：传入 ``List[str]``，返回 ``List[List[float]]``。
+    适配 DashScope compatible-mode
+    （``https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings``）等任意
+    OpenAI 格式 ``/embeddings`` 端点，与服务器装了 openai>=1.0 还是 <1.0 完全无关。
+    """
+
+    def __init__(self, api_key: str, model: str, api_base: str, dimensions: int = None):
+        self.api_key = api_key
+        self.model = model
+        self.dimensions = int(dimensions) if dimensions else None
+        base = (api_base or "").rstrip("/")
+        self.url = f"{base}/embeddings" if base else "https://api.openai.com/v1/embeddings"
+
+    def __call__(self, input):
+        # 注意：chromadb 0.4.x 用 *参数名* 校验 EmbeddingFunction 接口，
+        # 第一个业务参数必须叫 `input`（见 chromadb 的 EmbeddingFunction 协议），
+        # 命名为 texts 会触发 "Expected ... signature ... ['self','input']" 报错。
+        if isinstance(input, str):
+            input = [input]
+        texts = list(input)
+        if not texts:
+            return []
+        out: List[List[float]] = []
+        # 分批（DashScope /embeddings 建议单次 ≤ 若干条；保守 10 条/批）
+        for i in range(0, len(texts), 10):
+            out.extend(self._embed_batch(texts[i:i + 10]))
+        return out
+
+    def _embed_batch(self, batch: List[str]) -> List[List[float]]:
+        import json
+        import urllib.error
+        import urllib.request
+
+        body = {"model": self.model, "input": batch}
+        if self.dimensions:
+            body["dimensions"] = self.dimensions
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(self.url, data=data, method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Authorization", f"Bearer {self.api_key}")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            detail = ""
+            try:
+                detail = e.read().decode("utf-8", "ignore")[:800]
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"Embedding API HTTP {e.code} {getattr(e, 'reason', '')}: {detail}"
+            ) from e
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"Embedding API 请求失败: {exc}") from exc
+        try:
+            payload = json.loads(raw)
+        except Exception as exc:
+            raise RuntimeError(f"Embedding API 返回非 JSON: {raw[:200]}") from exc
+        items = payload.get("data") or []
+        if not items:
+            msg = payload.get("message") or payload.get("error") or "empty data"
+            raise RuntimeError(f"Embedding API 返回为空: {msg}")
+        # 按 index 排序，保证与输入顺序一致（部分服务商不保序）
+        items = sorted(items, key=lambda d: d.get("index", 0))
+        return [list(d["embedding"]) for d in items]
+
+
 class RAGKnowledgeBase:
     """
     基于 ChromaDB 的 RAG 知识库
@@ -82,6 +152,9 @@ class RAGKnowledgeBase:
         self._client = None
         self._collection = None
         self._embedding_function = None
+        # 一次性初始化失败标记：initialize() 一旦失败（如 NumPy 版本不兼容、
+        # embedding 不可达），本进程内不再对每篇文档重复尝试，避免日志被刷爆。
+        self._init_failed = False
 
     # ------------------------------------------------------------------
     # Async helper: run any synchronous callable in a thread-pool executor
@@ -107,6 +180,44 @@ class RAGKnowledgeBase:
         Web 启动被拖死。每步打印日志，便于定位卡点。
         """
         try:
+            import sys
+            if "onnxruntime" not in sys.modules:
+                try:
+                    from unittest import mock
+                    # 占位：本项目用 DashScope API 做 embedding，从不使用 chromadb
+                    # 的默认 ONNX MiniLM embedding；但 chromadb 在 import 时会 eager
+                    # 加载 onnxruntime 原生扩展，在部分 Windows 上会触发 access
+                    # violation 直接拖死进程。用 MagicMock 替换，使其 import 不再加载
+                    # 原生 .pyd（我们不使用它，无副作用）。对 chromadb 0.4.x / 0.5.x 均有效。
+                    sys.modules["onnxruntime"] = mock.MagicMock()
+                except Exception:
+                    pass
+
+            # NumPy 2.0 彻底移除了若干旧类型别名（np.float_ / np.complex_ /
+            # np.object_ / np.unicode_ / np.long_ 等）。chromadb 0.4.x 及其依赖
+            #（pypika-fork）仍会引用 np.float_，在 NumPy 2.0 下抛
+            # "np.float_ was removed in the NumPy 2.0 release. Use np.float64
+            # instead."，导致向量初始化失败。这里在 numpy 模块对象上全局恢复这些
+            # 别名，使第三方包在 NumPy 2.0 下仍可用——无需在服务器上把 numpy 降级
+            # 到 <2（降级可能破坏其它依赖 NumPy 2.0 的库）。别名目标均为官方推荐替身。
+            try:
+                import numpy as _np
+                _np_legacy_aliases = {
+                    "float_": _np.float64,
+                    "complex_": _np.complex128,
+                    "object_": object,
+                    "unicode_": _np.str_,
+                    "long_": _np.int64,
+                    "int_": _np.int64,
+                    "bool_": _np.bool_,
+                    "str_": _np.str_,
+                }
+                for _name, _target in _np_legacy_aliases.items():
+                    if not hasattr(_np, _name):
+                        setattr(_np, _name, _target)
+            except Exception:
+                pass
+
             import chromadb
             from chromadb.config import Settings
 
@@ -144,6 +255,7 @@ class RAGKnowledgeBase:
                     # 已建好的 chroma_db 向量不兼容。直接判定向量检索不可用。
                     self._embedding_function = None
                     self._collection = None
+                    self._init_failed = True
                     return False
 
             if self._embedding_function is None:
@@ -153,6 +265,7 @@ class RAGKnowledgeBase:
                     "Embedding 不可用：向量检索已关闭。Web 管理端正常启动，"
                     "但搜索/索引将返回空，直到 embedding 配置可用。"
                 )
+                self._init_failed = True
                 return False
 
             logger.info("[kb] 创建/获取 Chroma 集合（%s）…", self.config.collection_name)
@@ -169,19 +282,23 @@ class RAGKnowledgeBase:
             logger.info(
                 f"Initialized RAG with {self.embedding_config.provider}/{self.embedding_config.model}"
             )
+            self._init_failed = False
             return True
 
         except ImportError:
             logger.error("ChromaDB not installed. Run: pip install chromadb sentence-transformers")
+            self._init_failed = True
             return False
         except asyncio.TimeoutError:
             logger.error(
                 "initialize 超时（Chroma 客户端/集合创建 或 Embedding 探测 卡住）。"
                 "Web 端仍启动，检索为空。"
             )
+            self._init_failed = True
             return False
         except Exception as e:
             logger.error(f"Failed to initialize RAG: {e}")
+            self._init_failed = True
             return False
 
     def _create_embedding_function(self):
@@ -213,40 +330,48 @@ class RAGKnowledgeBase:
             model = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
         return SentenceTransformerEmbeddingFunction(model_name=model)
 
-    def _create_openai_embedding_function(self):
-        """创建 OpenAI Embedding 函数"""
-        try:
-            from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+    def _create_openai_compatible_embedding_function(self):
+        """用标准库 urllib 直连 OpenAI 兼容 /embeddings 端点（如 DashScope）。
 
-            return OpenAIEmbeddingFunction(
-                api_key=self.embedding_config.api_key or os.getenv("OPENAI_API_KEY"),
-                model_name=self.embedding_config.model or "text-embedding-3-small",
-            )
-        except ImportError:
-            logger.error("OpenAI embedding not available")
+        为什么不复用 chromadb 自带的 OpenAIEmbeddingFunction：
+        chromadb 0.4.x 的 OpenAIEmbeddingFunction 内部调用 `openai.Embedding.create`，
+        那是 openai <1.0 的旧接口。服务器若装了 openai>=1.0，会直接抛
+        "You tried to access openai.Embedding, but this is no longer supported in
+        openai>=1.0.0"。本项目用 urllib 自己打 /embeddings，与 openai 版本彻底解耦，
+        且零额外依赖（DashScope 的 compatible-mode 即标准 OpenAI 格式）。
+        """
+        api_key = self.embedding_config.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("EMBEDDING_API_KEY")
+        model = self.embedding_config.model or "text-embedding-3-small"
+        base_url = (
+            self.embedding_config.base_url
+            or os.getenv("EMBEDDING_BASE_URL")
+            or os.getenv("OPENAI_API_BASE")
+        )
+        if not api_key:
+            logger.error("Embedding 需要 api_key（config.yaml rag.embedding_api_key 或环境变量），无法创建。")
             return None
+        if not base_url:
+            # OpenAI 官方兜底端点
+            base_url = "https://api.openai.com/v1"
+            logger.warning("未配置 embedding base_url，回退 OpenAI 官方端点 %s", base_url)
+        return OpenAICompatibleEmbeddingFunction(
+            api_key=api_key,
+            model=model,
+            api_base=base_url,
+            dimensions=self.embedding_config.dimension or None,
+        )
+
+    def _create_openai_embedding_function(self):
+        """OpenAI Embedding（走 OpenAI 兼容接口，不依赖 openai 包版本）。"""
+        return self._create_openai_compatible_embedding_function()
 
     def _create_custom_embedding_function(self):
-        """创建自定义 OpenAI-Like Embedding 函数"""
-        try:
-            from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-
-            base_url = self.embedding_config.base_url or os.getenv("EMBEDDING_BASE_URL")
-            if not base_url:
-                logger.warning("Custom embedding provider requires EMBEDDING_BASE_URL, falling back to local")
-                return self._create_local_embedding_function()
-
-            # For chromadb OpenAIEmbeddingFunction, we might need to set openai.api_base directly 
-            # or pass api_base instead of base_url depending on chromadb version.
-            # Usually, chromadb uses `api_base` or `api_base` parameter in OpenAIEmbeddingFunction.
-            return OpenAIEmbeddingFunction(
-                api_key=self.embedding_config.api_key,
-                model_name=self.embedding_config.model or "text-embedding-3-small",
-                api_base=base_url,
-            )
-        except ImportError:
-            logger.error("OpenAI embedding function not available")
-            return None
+        """自定义 OpenAI-Like Embedding（DashScope / vLLM / Ollama 等）。"""
+        base_url = self.embedding_config.base_url or os.getenv("EMBEDDING_BASE_URL")
+        if not base_url:
+            logger.warning("Custom embedding provider 缺少 base_url，回退本地模型。")
+            return self._create_local_embedding_function()
+        return self._create_openai_compatible_embedding_function()
 
     def _create_anthropic_embedding_function(self):
         """创建 Anthropic Embedding 函数"""
@@ -259,7 +384,7 @@ class RAGKnowledgeBase:
         metadata: Dict[str, Any] = None,
     ) -> int:
         """索引文档到 ChromaDB"""
-        if self._collection is None:
+        if self._collection is None and not self._init_failed:
             await self.initialize()
 
         if self._collection is None:
@@ -720,7 +845,7 @@ class RAGKnowledgeBase:
             return False
 
         try:
-            update_data = {"id": doc_id}
+            update_data = {"ids": [doc_id]}
             if content is not None:
                 update_data["documents"] = [content]
             if metadata is not None:

@@ -18,6 +18,10 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from .auth import register_auth
+from multi_agent.memory.retrieval_eval import run_retrieval_eval
+from multi_agent.memory.schema_gate import run_gate
+
 logger = logging.getLogger(__name__)
 
 # ── 全局：由 run_web.py 注入 ────────────────────────────────────────────────
@@ -154,6 +158,32 @@ async def api_next_action(body: NextActionIn):
 async def api_experience():
     docs = await _mgr().list_docs(lib="experience")
     return {"count": len(docs), "cards": docs}
+
+
+@APP.get("/api/eval")
+async def api_eval(top_k: int = 10, sample: int = 0, lib: str = ""):
+    """Stage D：检索质量自评（MRR/Recall/HitRate + trace 抽样）。"""
+    sample = sample if sample and sample > 0 else None
+    lib = lib or None
+    res = await run_retrieval_eval(_mgr(), top_k=top_k, sample=sample, lib_filter=lib)
+    return res
+
+
+@APP.get("/api/validate")
+async def api_validate(artifact: str = "all"):
+    """Stage E：JSON Schema 机检关门。返回各产物 pass/fail 报告。
+
+    artifact: all | next_action | kb_corpus | kb_seed_manifest | retrieval_eval
+    """
+    allowed = {"all", "next_action", "kb_corpus", "kb_seed_manifest", "retrieval_eval"}
+    if artifact not in allowed:
+        artifact = "all"
+    report = run_gate(artifacts=artifact)
+    return report
+
+
+# ── 认证 / 用户管理（登录、会话、用户 CRUD、/api/* 保护） ───────────────────
+register_auth(APP)
 
 
 if __name__ == "__main__":

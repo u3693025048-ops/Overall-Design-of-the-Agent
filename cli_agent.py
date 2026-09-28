@@ -495,12 +495,31 @@ async def main(args) -> int:
         task_prompt=args.prompt,
     ) if ablation_cfg.reflection_agent else None
 
+    # Stage C4：把四库 RAG 接入 Layer 3 主循环（增强 next_action 决策 + 产出 next_action.json）。
+    # 失败（如 chromadb 不可用）时静默降级，主循环行为不变。
+    def _build_kb_manager_for_c4(rag_obj):
+        try:
+            from multi_agent.memory.knowledge_manager import KnowledgeManager
+            from multi_agent.config_loader import get_config as _get_cfg
+            _vec = bool(getattr(getattr(_get_cfg(), "web", None), "vector_search", False))
+            _km = KnowledgeManager(
+                rag_obj,
+                vector_enabled=_vec,
+                bm25_corpus_path="./kb_bm25_corpus.jsonl",
+            )
+            print("  Stage C4: 四库 RAG 已接入 Layer 3 主循环（next_action.json 增强开启）")
+            return _km
+        except Exception as _kb_exc:
+            print(f"  [WARN] Stage C4 知识库接入失败，跳过 RAG 增强: {_kb_exc}")
+            return None
+
     layer3_workflow = OptimizationWorkflow(
         rl_optimizer=rl_optimizer if ablation_cfg.rl_optimization else None,
         judgment_agent=judgment_agent,
         reflection_agent=reflection_agent,
         parameter_experience=parameter_experience,
         output_dir="./guidance_output",
+        kb_manager=_build_kb_manager_for_c4(rag),
     )
     print(f"  Layer 3 ready: rl={'enabled' if ablation_cfg.rl_optimization else 'disabled'} "
           f"judgment={'enabled' if judgment_agent else 'disabled'} "

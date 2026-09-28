@@ -746,10 +746,14 @@ web:
   host: 0.0.0.0          # 监听地址（本机访问用 127.0.0.1）
   port: 8787             # 访问端口 → http://localhost:8787
   # 向量检索开关：
-  #   false（默认，推荐先用这个）→ 纯 BM25 模式。全程不 import chromadb，
-  #        避免其原生依赖在部分 Windows 机器上崩溃拖死整个 Web 进程；
-  #        检索 / 入库 / 审核 / 回流 / next_action 全部照常工作。
-  #   true → 向量 + BM25 混合检索（前提：chromadb 与 embedding 真正可用）。
+  #   false → 纯 BM25 模式（当前推荐）。chroma 0.5.x 的 Rust 原生内核在部分
+  #        Windows 上 collection.get()/query()/upsert() 会触发原生 access
+  #        violation（不可被 Python 捕获，直接拖死进程）。纯 BM25 完全不碰
+  #        chromadb，服务稳定；检索/入库/审核/回流/next_action 照常工作。
+  #   true → 向量 + BM25 混合检索（Chroma + DashScope text-embedding-v3）。
+  #        前提：必须先把 chromadb 降到 0.4.x（预 Rust 内核，用 hnswlib C++，
+  #        无此崩溃）。降级命令：pip install chromadb==0.4.24
+  #        降级并 `python scripts/test_chroma.py` 通过后再翻为 true 重启即可。
   vector_search: false
   # 端点：/api/stats, /api/docs, /api/search, /api/doc,
   #       /api/reindex, /api/feedback, /api/next_action, /api/experience

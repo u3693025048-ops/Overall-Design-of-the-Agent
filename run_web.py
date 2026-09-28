@@ -55,13 +55,30 @@ def _background_init(mgr: "KnowledgeManager", root: str) -> None:
         ok = asyncio.run(asyncio.wait_for(mgr.ensure_ready(), timeout=120.0))
         if ok:
             st = asyncio.run(mgr.stats())
-            if (st.get("total_documents", 0) or 0) == 0:
-                print("[bg] 知识库为空，执行四库播种…", flush=True)
+            total = st.get("total_documents", 0) or 0
+            vec_count = st.get("vector_doc_count", 0) or 0
+            # 向量模式且 chroma 集合为空（如从纯 BM25 首次切换）→ 强制全量播种灌向量；
+            # 纯 BM25 模式或 chroma 已有数据 → 仅重建 BM25 互补索引。
+            need_seed = (total == 0) or (mgr.vector_enabled and vec_count == 0)
+            if need_seed:
+                if mgr.vector_enabled:
+                    # 删 BM25 期清单，强制重新读取并灌入 chroma（否则 _needs_ingest
+                    # 会认为文件未变而跳过向量入库，导致 chroma 永远空）。
+                    try:
+                        mgr._manifest_path().unlink()
+                        print("[bg] 删除纯 BM25 期播种清单，强制向量全量重灌…", flush=True)
+                    except FileNotFoundError:
+                        pass
+                    # 清空内存语料：项目迁移后旧 corpus 里是旧绝对路径 doc_id，
+                    # 与本次从新路径入库的 doc_id 不同，不清空会残留重复旧条目。
+                    mgr.hybrid._corpus = []
+                    print("[bg] 清空内存语料，从源按新路径重新播种…", flush=True)
+                print("[bg] 知识库为空/向量库未灌入，执行四库播种…", flush=True)
                 asyncio.run(mgr.seed_four_libraries(str(root)))
             else:
                 # 已索引则仅重建 BM25，保证混合检索覆盖
                 print("[bg] 已索引，重建 BM25 互补索引…", flush=True)
-                mgr.hybrid.rebuild(from_chroma=True)
+                mgr.hybrid.rebuild(from_chroma=False)
             print("[bg] 知识库初始化完成，检索已可用。", flush=True)
         else:
             print("[bg] 知识库初始化未完成（embedding/Chroma 未就绪）。"

@@ -82,6 +82,8 @@ class OptimizationWorkflow:
         parameter_experience=None,
         output_dir: str = "./guidance_output",
         optimizer_backend: Optional[str] = None,
+        kb_manager=None,
+        emit_next_action_json: bool = True,
     ):
         self.rl_optimizer = rl_optimizer
         self.judgment_agent = judgment_agent
@@ -91,6 +93,10 @@ class OptimizationWorkflow:
         # Explicit override; falls back to config if None
         self._optimizer_backend_name: Optional[str] = optimizer_backend
         self._backend = None   # lazy-loaded
+        # Stage C4：可选接入四库 RAG，用于增强 next_action 决策并产出
+        # 可机检的 next_action.json。为 None 时行为完全不变（纯策略决策）。
+        self.kb_manager = kb_manager
+        self.emit_next_action_json = emit_next_action_json
 
     def _get_optimizer_backend(self):
         """Lazy-load the optimizer backend from config or explicit override."""
@@ -704,6 +710,32 @@ class OptimizationWorkflow:
                         suggestion = f"{suggestion}\n{_gate_note}".strip()
                     logger.info("[OptimWorkflow] Requirement gate: %s", _gate_note[:200])
 
+        # ── Stage C4：RAG 增强 next_action 决策 + 产出 next_action.json ──────
+        _na_extra: Dict[str, Any] = {"next_action_json": None, "kb_context": []}
+        if self.kb_manager is not None and self.emit_next_action_json:
+            try:
+                from multi_agent.memory.kb_next_action import enrich_and_emit_next_action
+
+                _na_iter = len(optimization_history or [])
+                _na_payload, _na_path = await enrich_and_emit_next_action(
+                    self.kb_manager,
+                    os.path.join(self.output_dir, "next_action"),
+                    task_prompt=task_prompt,
+                    best_metrics=best_metrics,
+                    suggestion=suggestion,
+                    base_next_action=next_action,
+                    iteration=_na_iter,
+                )
+                _na_extra["next_action_json"] = _na_path
+                _na_extra["kb_context"] = _na_payload.get("kb_context", [])
+                if _na_path:
+                    logger.info(
+                        "[OptimWorkflow] C4 next_action.json -> %s (source=%s, hits=%s)",
+                        _na_path, _na_payload.get("source"), _na_payload.get("retrieved_count"),
+                    )
+            except Exception as exc:  # 绝不拖死主循环
+                logger.warning("[OptimWorkflow] C4 next_action 增强失败（已跳过）: %s", exc)
+
         # ── Path A: satisfied → write back + report ───────────────────────────
         if not needs_opt:
             writeback_ok = await self._writeback_experience(
@@ -725,6 +757,8 @@ class OptimizationWorkflow:
                 "best_metrics":    best_metrics,
                 "suggestion":      suggestion,
                 "next_action":     "done",
+                "next_action_json": _na_extra["next_action_json"],
+                "kb_context":       _na_extra["kb_context"],
                 "report_path":     report_path,
                 "writeback_ok":    writeback_ok,
                 "rl_hyperparams":  reflection_result.get("rl_hyperparams", {}),
@@ -743,9 +777,11 @@ class OptimizationWorkflow:
             "status":          "needs_iteration",
             "best_params":     best_params,
             "best_metrics":    best_metrics,
-            "suggestion":      suggestion,
-            "next_action":     next_action,
-            "report_path":     "",
+                "suggestion":      suggestion,
+                "next_action":     next_action,
+                "next_action_json": _na_extra["next_action_json"],
+                "kb_context":       _na_extra["kb_context"],
+                "report_path":     "",
             "rl_hyperparams":  reflection_result.get("rl_hyperparams", {}),
             "total_episodes":  _rl_total_episodes,
             "best_reward":     _rl_best_reward,
