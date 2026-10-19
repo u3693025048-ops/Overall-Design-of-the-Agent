@@ -47,6 +47,54 @@
         "iteration": 5,
         "total_episodes": 3
       }
+    },
+    {
+      "memory_id": "8104707cdec47fdf",
+      "memory_type": "short_term",
+      "task_context": {
+        "task": "guidance_rl_optimization",
+        "mode": "TUNE_PARAMS",
+        "RUN_CASE": "T",
+        "SUB_IDX": 1,
+        "category": "T",
+        "subcases": "{'T': [1]}",
+        "prompt": "制导系统设计任务（三层架构系统输入示例）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n任务工况（基于 monte_carlo_single.m T/G/AP/R 体系）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n运行工况：RUN_CASE='T'; SUB_IDX=1;\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n性能指标要求（Layer1 自动解析，Layer3 判断/反思智能体评估）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n命中率     >= 92%\nSEP脱靶量  <= 7 m\nPeakNy峰值法向过载 <= 20 g\nPM相位裕度 在 45°~ 70° 范围内\nBW带宽     在 20 ~ 85 rad/s 范围内\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n设计约束\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n1. 模板要求: 以 monte_carlo_single.m 为基础模板\n   - 保持 RL_PARAMS_BEGIN/END 注入块结构不变（RL优化器通过此块修改参数）\n   - rl_w1, rl_zeta1, rl_w2, rl_zeta2, rl_w3, rl_zeta3 对应驾驶仪参数\n   - rl_N_pn对应制导律参数\n   - base=struct(...) 中引用上述 rl_* 变量\n\n2. 不可大变动的部分（接口与变量可改）:\n   - 六自由度弹道模型（df/rk4f 函数）\n   - 驾驶仪设计函数（cg 函数）\n   - 气动力计算（af 函数）\n   - 控制律（cf 函数）\n\n3. 可选修改:\n   - 制导律（gf 函数）：可修改导引律结构，但接口不变\n   - 初始交战参数（base struct 中的目标/导弹参数）\n\n4.MATLAB代码要求：\n- 要符合matlab语法规范\n- 变量定义完整，且整体一致\n- 不出现未定义变量\n- 保持原有接口兼容\n- 对关键参数和新增项加注释\n\n4. 仿真输出格式要求（RL优化器解析依赖）:\n   - print_summary 格式: 命中率(miss<10m): X%  SEP: X.XXm\n   - 峰值法向过载行: 峰值法向过载: X.XX±Y.XXg\n   - 俯仰参数行: 俯仰PM: X.X±Y.Y°  BW: X.X±Y.X rad/s  GM: X.X±Y.X dB\n\n注意：\n若修改制导律则：仿真报告需要包括- 制导律设计思路，修改后的制导律说明"
+      },
+      "parameters": {
+        "dp_w1": 35.0,
+        "dp_zeta1": 0.8,
+        "dp_tao1": 0.2,
+        "dp_w2": 44.0,
+        "dp_zeta2": 0.758,
+        "dp_tao2": 0.324,
+        "dp_w3": 42.0,
+        "dp_zeta3": 0.717,
+        "dp_N_pn": 4.5,
+        "dp_ny_lim": 20.0
+      },
+      "objectives": {
+        "hit_rate": 40.0,
+        "SEP": 74.35,
+        "peak_ny": 19.91,
+        "pitch_PM": 76.8,
+        "pitch_BW": 11.300000000000002,
+        "pitch_GM": 6.0,
+        "miss_distance": 74.35,
+        "peak_n": 19.91,
+        "peak_ny_mean": 19.91,
+        "peak_ny_max": 24.35,
+        "peak_n_max": 24.35,
+        "_parse_incomplete": 0.0,
+        "_sim_source": 0.0
+      },
+      "fitness": 0.005441274054412741,
+      "timestamp": 1791444965.0575657,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 5,
+        "total_episodes": 3
+      }
     }
   ],
   "long_term": [
@@ -95,8 +143,8 @@
       },
       "fitness": 0.16946308724832215,
       "timestamp": 1788414534.7483401,
-      "access_count": 13,
-      "last_access": 1788425097.3432336,
+      "access_count": 18,
+      "last_access": 1791444959.9218032,
       "metadata": {
         "iteration": 4,
         "total_episodes": 3
@@ -138,8 +186,8 @@
       },
       "fitness": 0.5596714285714285,
       "timestamp": 1788407749.5135877,
-      "access_count": 13,
-      "last_access": 1788425097.3432336,
+      "access_count": 18,
+      "last_access": 1791444959.9218032,
       "metadata": {
         "optimizer": "MatlabRLOptimizer",
         "episode_count": 15,
@@ -196,8 +244,8 @@
       },
       "fitness": 0.8214285714285714,
       "timestamp": 1788410378.6820278,
-      "access_count": 13,
-      "last_access": 1788425097.3432336,
+      "access_count": 18,
+      "last_access": 1791444959.9218032,
       "metadata": {
         "episode": 2,
         "reward": 5.175
@@ -239,8 +287,8 @@
       },
       "fitness": 0.5922736263736263,
       "timestamp": 1788411228.5678022,
-      "access_count": 19,
-      "last_access": 1788425097.3432336,
+      "access_count": 24,
+      "last_access": 1791444959.9218032,
       "metadata": {
         "optimizer": "MatlabRLOptimizer",
         "episode_count": 28,
@@ -298,8 +346,8 @@
       },
       "fitness": 0.6119285714285714,
       "timestamp": 1788412595.56027,
-      "access_count": 19,
-      "last_access": 1788425097.3432336,
+      "access_count": 24,
+      "last_access": 1791444959.9218032,
       "metadata": {
         "optimizer": "MatlabRLOptimizer",
         "episode_count": 38,
@@ -567,8 +615,8 @@
       },
       "fitness": 0.7804472527472527,
       "timestamp": 1788413955.4201033,
-      "access_count": 10,
-      "last_access": 1788422644.2652833,
+      "access_count": 11,
+      "last_access": 1791444938.6024983,
       "metadata": {
         "optimizer": "MatlabRLOptimizer",
         "episode_count": 48,
@@ -1100,6 +1148,30 @@
       "last_access": 0.0,
       "metadata": {
         "iteration": 5
+      }
+    },
+    {
+      "memory_id": "e318773aa58fa39b",
+      "memory_type": "episodic",
+      "task_context": {
+        "event_type": "confirm_gate",
+        "description": "iter=1 tool=* decision=standing_grant risk=confirm",
+        "timestamp_iso": "2026-10-08T15:35:38"
+      },
+      "parameters": {},
+      "objectives": {},
+      "fitness": 0.0,
+      "timestamp": 1791444938.6034968,
+      "access_count": 0,
+      "last_access": 0.0,
+      "metadata": {
+        "iteration": 1,
+        "tool": "*",
+        "decision": "standing_grant",
+        "risk": "confirm",
+        "confirmation_id": "",
+        "by": "cli_agent(无人值守启动期一次性授权)",
+        "policy_version": "1.0.0"
       }
     }
   ],

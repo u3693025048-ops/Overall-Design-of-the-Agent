@@ -314,6 +314,9 @@ SEP: {current_metrics.get('SEP', 99):.2f}m
                     temperature=0.3,
                     max_tokens=2000,
                 )
+                # P2-1 户部：记一次真实用量（模型名取自响应，比这里的字面量更可信）
+                from multi_agent import cost_meter as _cost
+                _cost.record(response, model="deepseek-v4-pro", label="expert_analyzer")
                 return response.choices[0].message.content or ""
             elif hasattr(self.llm_client, "run_conversation"):
                 # Hermes接口

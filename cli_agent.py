@@ -102,6 +102,80 @@ if dotenv_path.exists():
     load_dotenv(dotenv_path)
 
 
+async def _flush_tool_guard_denials(parameter_experience, iteration: int) -> int:
+    """P1-2 留痕：把累积的工具边界拒绝转写进参数经验库，随后清账。
+
+    工具调用发生在 Hermes 内部（且 handler 跑在独立线程），无法在拒绝当时
+    直接 await 写经验库；故在此处（主协程内）批量结算——每轮迭代开始时 +
+    主循环结束后各调用一次，保证"越权被拒"与计划审核一样可事后审计。
+    """
+    try:
+        from multi_agent.security import tool_guard as _tg
+    except Exception:
+        return 0
+    items = _tg.denials()
+    if not items:
+        return 0
+    _tg.reset_denials()
+    for _d in items:
+        try:
+            await parameter_experience.store_event(
+                "tool_guard_deny",
+                (f"iter={iteration} tool={_d.get('tool')} "
+                 f"code={_d.get('code')} role={_d.get('role')}"),
+                metadata={
+                    "iteration": iteration,
+                    "tool": _d.get("tool"),
+                    "code": _d.get("code"),
+                    "role": _d.get("role"),
+                    "policy_version": _d.get("policy_version"),
+                },
+            )
+        except Exception:
+            pass
+    print(f"  [ToolGuard] {len(items)} 次工具调用被边界权限拒绝（已记入经验库）")
+    return len(items)
+
+
+async def _flush_confirm_gate(parameter_experience, iteration: int) -> int:
+    """P1-3 留痕：把确认闸门的裁决（待确认 / 拒绝 / 授权命中）转写进经验库。
+
+    与 P1-2 同因：工具调用发生在 Hermes 内部且 handler 跑在独立线程，
+    无法在裁定当时 await 写库；故在主协程内批量结算。只结算**非放行**
+    的裁决（待确认 / 拒绝），避免正常 standing/approved 放行把经验库刷满。
+    """
+    try:
+        from multi_agent.security import confirm_gate as _cg
+    except Exception:
+        return 0
+    items = [a for a in _cg.audit_log()
+             if a.get("decision") in ("pending", "rejected", "audit_only", "standing_grant")]
+    if not items:
+        return 0
+    _cg.reset_audit()
+    for _a in items:
+        try:
+            await parameter_experience.store_event(
+                "confirm_gate",
+                (f"iter={iteration} tool={_a.get('tool')} "
+                 f"decision={_a.get('decision')} risk={_a.get('risk')}"),
+                metadata={
+                    "iteration": iteration,
+                    "tool": _a.get("tool"),
+                    "decision": _a.get("decision"),
+                    "risk": _a.get("risk"),
+                    "confirmation_id": _a.get("confirmation_id"),
+                    "by": _a.get("by"),
+                    "policy_version": _cg.POLICY_VERSION,
+                },
+            )
+        except Exception:
+            pass
+    _n_pending = sum(1 for a in items if a.get("decision") == "pending")
+    if _n_pending:
+        print(f"  [ConfirmGate] {_n_pending} 次高风险操作待人工确认（已记入经验库）")
+    return len(items)
+
 
 async def main(args) -> int:
 
@@ -189,18 +263,245 @@ async def main(args) -> int:
 
     ablation_cfg = cfg.ablation
 
-    _abl_off = [k for k, v in {
-        "guidance_compat_verification": ablation_cfg.guidance_compat_verification,
-        "syntax_check":                 ablation_cfg.syntax_check,
-        "rl_optimization":              ablation_cfg.rl_optimization,
-        "parameter_experience_reuse":   ablation_cfg.parameter_experience_reuse,
-        "reflection_agent":             ablation_cfg.reflection_agent,
-        "memory_search":                ablation_cfg.memory_search,
-    }.items() if not v]
+    # P2-7：启动横幅的开关集**由权威表派生**（`multi_agent/ablation_registry.py`）。
+    # 此前这里是手写 dict，与报告表 / config.yaml / AblationConfig 四处并存、互相漂移
+    # —— `optimization_workflow` 一直缺席本横幅、`hermes_rl_tool` 一直在（死开关）。
+    # 只列 `kind=ablation_flag` 的**真·开关**：模式开关（protocol_strict /
+    # tool_result_strict）的 `false` 是 **audit（留痕不拦）**，不是"被移除"，
+    # 列进来会把审计模式误读成组件被关掉。
+    try:
+        from multi_agent import ablation_registry as _abl_reg
+        _abl_off = [sw.key for sw in _abl_reg.flag_switches()
+                    if not bool(getattr(ablation_cfg, sw.key, sw.default))]
+    except Exception as _abl_reg_e:  # pragma: no cover — 权威表不可用不得阻断主流程
+        _abl_off = []
+        print(f"  [Ablation Study] registry unavailable: {_abl_reg_e}")
     if _abl_off:
         print(f"  [Ablation Study] Components DISABLED: {', '.join(_abl_off)}")
     else:
         print("  [Ablation Study] All components enabled (full system).")
+
+    # P2-2：吏部身份治理 —— 解析本次运行身份（用户画像 × 角色注册表 → 有效权限）。
+    # 前三轮建的三个闸门（P1-1 计划审核 / P1-2 工具边界权限 / P1-3 确认闸门）
+    # 都缺"谁授予权限"这一格；这里就是授予方：
+    #   · 匿名运行（未声明身份）→ 回落 anonymous_role（默认 operator）= 等价接入前"全授予"；
+    #   · 具名但未注册         → **最小权限**（fail-closed），不给任何计划级权限。
+    _ident_cfg = getattr(cfg, "identity", None)
+    _identity = None
+    try:
+        from multi_agent.security import user_profile as _up
+        from multi_agent.security import role_registry as _rr
+        if _ident_cfg is not None and getattr(_ident_cfg, "enabled", True):
+            _prof_path = (getattr(_ident_cfg, "profiles_path", "") or "").strip() \
+                or _up.default_store_path()
+            _store = _up.ProfileStore(_prof_path)
+            _up.set_store(_store)
+            _who = (getattr(args, "user", None)
+                    or getattr(_ident_cfg, "default_user", "") or "")
+            _identity = _up.resolve_identity(
+                _who, store=_store,
+                anonymous_role=getattr(_ident_cfg, "anonymous_role", "operator"),
+            )
+            print(f"  [吏部] 运行身份 {'(匿名)' if _identity.anonymous else repr(_identity.username)}  "
+                  f"roles={list(_identity.roles)}  "
+                  f"plan_perms={sorted(_identity.plan_permissions)}  "
+                  f"deny_critical={_identity.deny_critical}  "
+                  f"registered={_identity.registered}")
+            if _identity.unknown_roles:
+                print(f"  [吏部] 未注册角色已忽略（不授予任何权限）："
+                      f"{list(_identity.unknown_roles)}")
+            if not _identity.anonymous and not _identity.registered:
+                print("  [吏部] 该身份未注册 → 最小权限（fail-closed）；"
+                      "如需授权请先在画像库登记角色。")
+            _rr_rep = _rr.validate_registry()
+            if not _rr_rep["ok"]:
+                _rr.logger.error("[RoleRegistry] 注册表不自洽：%s", _rr_rep["problems"])
+    except Exception as _id_e:  # pragma: no cover — 身份治理失败不得阻断主流程
+        print(f"  [吏部] identity init skipped: {_id_e}")
+
+    # P2-1：户部成本核算 —— 装载 token/金额计量与运行级预算。
+    # 补齐差距「全仓无 token/cost 累计或阈值」（此前只有墙钟预算）。形态与墙钟预算同型：
+    #   · 计量账落 <repo>/logs/token_usage.jsonl（**逐次追加**，崩了也不丢），
+    #     汇总落 .../token_usage_summary.json；
+    #     ⚠️ **刻意不落 07_runs/{run_id}/** —— 那个目录"存在且非空"是 P0-1b 跑次包
+    #     背书守卫的判据，凭空多一个账文件会把守卫打穿（见 cost_meter 模块文档）。
+    #   · 运行边界（本文件循环头 + optimization_workflow 存盘点）轮询 should_stop()，
+    #     与 time_budget.should_stop() 并列；
+    #   · enabled=false 或 mode=off ⇒ 根本不装载，行为与接入前逐字等价。
+    try:
+        from multi_agent import cost_meter as _cost
+        _cost_cfg = getattr(cfg, "cost", None)
+        if _cost_cfg is not None and getattr(_cost_cfg, "enabled", True):
+            _cost_root = Path(__file__).resolve().parent
+            _cost_persist = bool(getattr(_cost_cfg, "persist", True))
+            _cost_usage = (getattr(_cost_cfg, "usage_log_path", "") or "").strip() \
+                or str(_cost_root / "logs" / "token_usage.jsonl")
+            _cost_summary = (getattr(_cost_cfg, "summary_path", "") or "").strip() \
+                or str(_cost_root / "logs" / "token_usage_summary.json")
+            _cost.init_cost_meter(
+                enabled=True,
+                mode=getattr(_cost_cfg, "mode", "audit"),
+                prices=getattr(_cost_cfg, "prices", None),
+                session_id=str(getattr(args, "_async_task_id", "") or ""),
+                max_records=int(getattr(_cost_cfg, "max_records", 50000) or 50000),
+                jsonl_path=(_cost_usage if _cost_persist else None),
+                summary_path=(_cost_summary if _cost_persist else None),
+            )
+            _cost.init_cost_budget(
+                max_total_tokens=getattr(_cost_cfg, "max_total_tokens", None),
+                max_cost_usd=getattr(_cost_cfg, "max_cost_usd", None),
+                warn_ratio=getattr(_cost_cfg, "warn_ratio", 0.8),
+                label="cli_agent",
+            )
+            _cost_st = _cost.budget_status()
+            print(f"  [户部] 成本核算 mode={_cost.get_cost_meter().mode}  "
+                  f"账={(str(_cost_usage) if _cost_persist else '(不落盘)')}  "
+                  f"预算={_cost_st['reason'] if _cost_st else '未设上限'}")
+            if getattr(_cost_cfg, "hook_openai_sdk", False):
+                _hook_ok = _cost.install_openai_hook()
+                print(f"  [户部] openai SDK 兜底钩子：{'已安装' if _hook_ok else '安装失败'}")
+    except Exception as _cost_e:  # pragma: no cover — 计费失败不得阻断主流程
+        print(f"  [户部] cost meter init skipped: {_cost_e}")
+
+    # P1-3：装载高风险/不可逆操作确认闸门（模式 / 一次性授权 / 落盘 / 本轮作用域）。
+    # 无人值守批处理下，操作员在**启动期**对可复现工程动作（写脚本 / 跑仿真）
+    # 做一次性授权并留痕；不可逆动作（agent_memory_forget）必须逐次人工批准。
+    try:
+        from multi_agent.security import confirm_gate as _cg
+        if not ablation_cfg.confirm_gate:
+            _cg.set_mode(_cg.MODE_OFF)
+        else:
+            _cg.set_mode(ablation_cfg.confirm_mode)
+            # P2-2：确认面的 deny_critical 由**运行身份**授予（与配置取"拒绝优先"或）
+            _deny_crit = bool(ablation_cfg.confirm_deny_critical)
+            if _identity is not None:
+                _deny_crit = _deny_crit or bool(_identity.deny_critical)
+            _cg.set_deny_critical(_deny_crit)
+            # P2-2：启动期一次性授权先按**计划级权限**过滤（没有 write_script 的
+            # 身份拿不到 generate_matlab 的 standing），再交确认闸门做可逆性过滤。
+            _req_standing = (ablation_cfg.confirm_standing
+                             if ablation_cfg.confirm_standing is not None
+                             else list(_cg.DEFAULT_STANDING_TOOLS))
+            if _identity is not None:
+                from multi_agent.security import role_registry as _rr_s
+                _req_standing = _rr_s.standing_filter(
+                    _req_standing, plan_permissions=_identity.plan_permissions)
+            _cg.grant_standing(
+                _req_standing,
+                by="cli_agent(无人值守启动期一次性授权)",
+            )
+        _cg.set_scope(f"{os.getpid()}-{(getattr(args, 'prompt', '') or '')[:40]}")
+        _cg.set_store_path(_cg.default_store_path())
+        _cg_snap = _cg.audit_snapshot()
+        print(f"  [ConfirmGate] mode={_cg_snap['mode']}  "
+              f"standing={_cg_snap['standing']}  scope={_cg_snap['scope'][:24]}")
+    except Exception as _cg_e:  # pragma: no cover — 闸门装载失败不得阻断主流程
+        print(f"  [ConfirmGate] init skipped: {_cg_e}")
+
+    # P2-2：把运行身份的**计划级权限**兑现到执行边界（主 Hermes 的基线策略）。
+    # 子智能体会在其上再压自己的角色策略（policy_scope 嵌套），delegate_tool 亦会
+    # 覆盖；故本基线只约束"编排者直接调用工具"这一层。
+    # operator（全权）时与接入前完全等价（全工具 + 全部计划级权限）。
+    if _identity is not None:
+        try:
+            from multi_agent.security import tool_guard as _tg_i
+            from multi_agent.security import role_registry as _rr_i
+            if _tg_i.depth() == 0:
+                _tg_i.push(_rr_i.orchestrator_tool_policy(
+                    _identity.plan_permissions,
+                    label=f"identity:{_identity.username or 'anon'}",
+                ))
+                print(f"  [吏部] 执行边界基线策略已绑定："
+                      f"granted={sorted(_identity.plan_permissions)}")
+        except Exception as _tg_e:  # pragma: no cover
+            print(f"  [吏部] orchestrator policy bind skipped: {_tg_e}")
+
+    # P1-4：白名单严格模式（失败即拒绝）。与 Hermes 装配处的开关同源、幂等，
+    # 这样即便本次跑次不走 Hermes（如 T4 快路径），开关状态也与配置一致。
+    try:
+        from multi_agent.integration import sub_agent as _sa
+        from multi_agent.tools import delegate_tool as _dt
+        _sa.set_strict_whitelist(ablation_cfg.sub_agent_strict)
+        _dt.set_allow_specialist_escalation(not ablation_cfg.sub_agent_strict)
+        print(f"  [SubAgentWhitelist] strict={ablation_cfg.sub_agent_strict}")
+        # 启动期断言：真实配置必须自洽（不通过即 ERROR 可见，但不阻断主流程）
+        _cfg_report = _sa.validate_sub_agent_configs()
+        if not _cfg_report["ok"]:
+            _sa.logger.error(
+                "[SubAgentWhitelist] 白名单配置不自洽：%s",
+                "; ".join(f"{p['agent_type']}/{p['kind']}" for p in _cfg_report["problems"]),
+            )
+    except Exception as _sa_e:  # pragma: no cover — 开关装配失败不得阻断主流程
+        print(f"  [SubAgentWhitelist] init skipped: {_sa_e}")
+
+    # P2-4（礼部）：子智能体间协议校验 + 提示词台账。
+    # 协议默认 audit（只留痕，不改返回值）；提示词台账在启动期做一次**廉价**自检
+    # （只看已登记的 inline/file 条目指纹，不扫全仓 AST —— 全仓发现留给
+    # `scripts/check_prompts.py`，避免每次启动都付扫描成本）。
+    try:
+        from multi_agent.integration import agent_protocol as _ap
+        from multi_agent import prompt_registry as _pr
+        _ap.set_strict(bool(ablation_cfg.protocol_strict))
+        _pr_sum = _pr.summary()
+        print(f"  [礼部] 协议校验 mode={'strict' if _ap.is_strict() else 'audit'}"
+              f"（契约 {len(_ap.PROTOCOL_AGENTS)} 个；无契约 {list(_ap.NO_SCHEMA_AGENTS)}）"
+              f" | 提示词台账 v{_pr_sum['registry_version']} 共 {_pr_sum['total']} 条"
+              f" {_pr_sum['by_kind']}")
+        _pr_v = _pr.verify(full=False)
+        if not _pr_v["ok"]:
+            print(f"  [礼部] ⚠️ 提示词台账指纹漂移 {len(_pr_v['bad'])} 条："
+                  f"{[b['id'] for b in _pr_v['bad']][:3]}"
+                  f"（改提示词请跑 scripts/check_prompts.py --update 并提升 version）")
+    except Exception as _p24_e:  # pragma: no cover — 旁路装配失败不得阻断主流程
+        print(f"  [礼部] protocol/prompt init skipped: {_p24_e}")
+
+    # P2-5（兵部）：工具返回类型统一层。默认 audit（handler 侧与接入前逐字等价）；
+    # 这里只做"装配 + 打印台账"，不做任何重活。
+    try:
+        from multi_agent.tools import tool_result as _tr
+        _tr.set_strict(bool(ablation_cfg.tool_result_strict))
+        print("  " + _tr.summary())
+        _tr_v = _tr.verify()
+        if not _tr_v["ok"]:
+            print(f"  [兵部] ⚠️ 返回形态台账自检异常：{_tr_v['problems'][:3]}")
+    except Exception as _p25_e:  # pragma: no cover — 旁路装配失败不得阻断主流程
+        print(f"  [兵部] tool_result init skipped: {_p25_e}")
+
+    # P2-6（工部）：运行指标采集与上报。形态与墙钟预算 / 成本计量**同型**
+    # （模块级单例 + 在同一组运行边界被并列咨询），**不替换任何既有计量**。
+    #   · 落盘 <repo>/logs/metrics/（**刻意不落 07_runs/{run_id}/** —— 那个目录
+    #     "存在且非空"是 P0-1b 跑次包背书守卫的判据，凭空多一个文件会把守卫打穿；
+    #     模块内有路径守卫，配到该目录会直接 ValueError 而不是静默改道）；
+    #   · enabled=false / 零指标 ⇒ 全 API no-op 且**不创建任何文件**（惰性）；
+    #   · 上报失败只累加 report.n_report_failed，**绝不打断主流程**。
+    try:
+        from multi_agent import metrics as _met
+        _met_cfg = getattr(cfg, "metrics", None)
+        if _met_cfg is not None and getattr(_met_cfg, "enabled", True):
+            _met.init_metrics(
+                enabled=True,
+                sink=getattr(_met_cfg, "sink", "file"),
+                persist=bool(getattr(_met_cfg, "persist", True)),
+                jsonl_path=(getattr(_met_cfg, "jsonl_path", "") or "").strip() or None,
+                summary_path=(getattr(_met_cfg, "summary_path", "") or "").strip() or None,
+                prometheus_path=(getattr(_met_cfg, "prometheus_path", "") or "").strip() or None,
+                write_jsonl=bool(getattr(_met_cfg, "write_jsonl", True)),
+                write_prometheus=bool(getattr(_met_cfg, "write_prometheus", True)),
+                http_url=getattr(_met_cfg, "http_url", "") or "",
+                http_timeout_sec=float(getattr(_met_cfg, "http_timeout_sec", 3.0) or 3.0),
+                http_headers=getattr(_met_cfg, "http_headers", None),
+                session_id=str(getattr(args, "_async_task_id", "") or ""),
+                label="cli_agent",
+                max_series=int(getattr(_met_cfg, "max_series", 10000) or 10000),
+            )
+            print("  " + _met.summary())
+            _met_v = _met.verify()
+            if not _met_v["ok"]:
+                print(f"  [工部] ⚠️ 指标模块自检异常：{_met_v['problems'][:3]}")
+        else:
+            print("  [工部] 运行指标采集 未启用（enabled=false ⇒ 全 no-op，等价接入前）")
+    except Exception as _p26_e:  # pragma: no cover — 旁路装配失败不得阻断主流程
+        print(f"  [工部] metrics init skipped: {_p26_e}")
 
     rl_cfg  = cfg.matlab_rl_optimizer
 
@@ -506,12 +807,21 @@ async def main(args) -> int:
                 rag_obj,
                 vector_enabled=_vec,
                 bm25_corpus_path="./kb_bm25_corpus.jsonl",
+                # P2-7：台账开关透传。false ⇒ KnowledgeManager.ledger=None，
+                # runs/card_promotions 不记账（等价 P0.5 台账接入前）。
+                ledger_enabled=bool(ablation_cfg.kb_ledger),
             )
-            print("  Stage C4: 四库 RAG 已接入 Layer 3 主循环（next_action.json 增强开启）")
+            print("  Stage C4: 四库 RAG 已接入 Layer 3 主循环（next_action.json 增强开启）"
+                  f" | 台账={'on' if ablation_cfg.kb_ledger else 'off(消融 kb_ledger)'}")
             return _km
         except Exception as _kb_exc:
             print(f"  [WARN] Stage C4 知识库接入失败，跳过 RAG 增强: {_kb_exc}")
             return None
+
+    # P2-7：`ablation.kb_four_lib=false` ⇒ Layer 3 不接四库（kb_manager=None）：
+    # next_action 不做四库增强、也不产 next_action.json。默认 true，行为与接入前一致。
+    if not ablation_cfg.kb_four_lib:
+        print("  [Ablation] kb_four_lib: DISABLED — Layer 3 不接四库（next_action 不增强）。")
 
     layer3_workflow = OptimizationWorkflow(
         rl_optimizer=rl_optimizer if ablation_cfg.rl_optimization else None,
@@ -519,7 +829,11 @@ async def main(args) -> int:
         reflection_agent=reflection_agent,
         parameter_experience=parameter_experience,
         output_dir="./guidance_output",
-        kb_manager=_build_kb_manager_for_c4(rag),
+        kb_manager=(_build_kb_manager_for_c4(rag) if ablation_cfg.kb_four_lib else None),
+        # P0-4：C4 产物归跑次包 deliverables/07_runs/{run_id}/next_action.json。
+        # 有异步 task_id 就用它（同一次任务的多轮迭代归同一个跑次）；
+        # 否则由工作流按任务名+时刻生成（见 OptimizationWorkflow Stage C4）。
+        run_id=(_async_task_id or None),
     )
     print(f"  Layer 3 ready: rl={'enabled' if ablation_cfg.rl_optimization else 'disabled'} "
           f"judgment={'enabled' if judgment_agent else 'disabled'} "
@@ -668,6 +982,10 @@ async def main(args) -> int:
 
         iteration += 1
 
+        # P1-2 / P1-3：结算上一轮累积的边界拒绝与确认裁决（写经验库，便于事后审计）
+        await _flush_tool_guard_denials(parameter_experience, iteration)
+        await _flush_confirm_gate(parameter_experience, iteration)
+
         suggestion = ""
         needs_optimization = False
 
@@ -717,6 +1035,28 @@ async def main(args) -> int:
             iteration_records.append(_iter_record("wall_clock_budget"))
             break
 
+        # P2-1：户部预算与墙钟预算**并列**在同一运行边界咨询（形态一致，不另造调度点）。
+        # 未设限额（max_total_tokens / max_cost_usd 都空）时 should_stop() 恒 False
+        # ⇒ 与接入前逐字等价。
+        from multi_agent import cost_meter as _cost_loop
+
+        if _cost_loop.should_stop(reserve_ratio=0.10):
+            _cost_loop_st = _cost_loop.budget_status() or {}
+            cprint(
+                f"  [户部] 预算已用 {(_cost_loop_st.get('token_ratio') or 0.0) * 100:.1f}%"
+                f"（tokens={_cost_loop_st.get('used_tokens')}/"
+                f"{_cost_loop_st.get('limit_tokens')}），不足以下一轮，停止迭代"
+            )
+            iteration_records.append(_iter_record("cost_budget"))
+            break
+
+        # P2-6：工部运行指标与墙钟 / 成本预算**并列**在同一运行边界（形态一致，
+        # 不另造调度点）。未启用 ⇒ 全 no-op，等价接入前。
+        from multi_agent import metrics as _met_loop
+
+        _met_loop.gauge("main_loop_iteration", iteration)
+        _met_loop.counter("main_loop_iterations")
+
         _last_hist_metrics = (
             (_optim_history[-1].get("metrics") or {})
             if _optim_history else {}
@@ -757,14 +1097,52 @@ async def main(args) -> int:
                            "./knowledge_base/matlab/guidance/monte_carlo_single.m")
             )
 
-            task_plan = await planner.analyze_and_plan(
+            # ── 门下省 · 计划送审（P1-1）─────────────────────────────────
+            # 在「中书省分析规划」与「执行」之间插入独立审核节点：审 TaskPlan
+            # 的结构完整性 / 计划级权限 / 风险 / 事实依据。驳回 → 带驳回理由重拟；
+            # 重拟耗尽仍不通过 → 降级为最小风险计划（单智能体、不拆分、mode 降档）。
+            # `ablation.plan_review=false` 时完全透传，行为与接入前一致。
+            from multi_agent.integration.plan_review import review_plan_with_replan
+
+            task_plan, _plan_verdict = await review_plan_with_replan(
+                planner,
                 current_prompt,
-                reflection_feedback=prev_suggestion,
-                prev_rl_best_params=_prev_rl_best_params or None,
-                script_path=_planner_script,
-                optimization_history=_optim_history or None,
-                last_metrics=_last_hist_metrics or None,
+                plan_kwargs=dict(
+                    reflection_feedback=prev_suggestion,
+                    prev_rl_best_params=_prev_rl_best_params or None,
+                    script_path=_planner_script,
+                    optimization_history=_optim_history or None,
+                    last_metrics=_last_hist_metrics or None,
+                ),
+                enabled=bool(getattr(ablation_cfg, "plan_review", True)),
+                iteration=iteration,
+                # P2-2 吏部：计划级权限由**运行身份**授予；未启用身份治理时为 None
+                # （= 全授予，与接入前一致）；具名未注册身份为空集 ⇒ MODIFY_LAW /
+                # TUNE_PARAMS 计划会被门下省驳回（这正是"未注册拿不到权限"）。
+                permissions=(_identity.plan_permissions
+                             if _identity is not None else None),
             )
+
+            if _plan_verdict is not None:
+                _pv = _plan_verdict
+                if not _pv.approved:
+                    cprint(
+                        f"  [门下省] 计划未通过（风险 {_pv.risk_level}，"
+                        f"重拟 {_pv.replans} 次"
+                        f"{'，已降级' if _pv.degraded else ''}）："
+                        f"{'；'.join(_pv.rejected_reasons)[:160]}"
+                    )
+                elif _pv.requires_human:
+                    _esc = "；".join(
+                        f["message"] for f in _pv.findings
+                        if f.get("severity") == "escalate"
+                    )
+                    cprint(
+                        f"  [门下省] 计划放行但需人工关注（风险 {_pv.risk_level}）：{_esc[:160]}"
+                    )
+                else:
+                    cprint(f"  [门下省] 计划通过（风险 {_pv.risk_level}）")
+                dprint(f"  Review : {json.dumps(_pv.to_dict(), ensure_ascii=False)}")
 
             # ── Step 0A result: 任务工况分析 (performed BEFORE mode selection) ──
             # The planner now derives mission conditions via LLM grounded in the
@@ -797,6 +1175,24 @@ async def main(args) -> int:
                 f"iter={iteration} mode={task_plan.mode} reason={task_plan.reason[:150]}",
                 metadata={"iteration": iteration, "mode": task_plan.mode},
             )
+
+            # 门下省审核留痕（与 plan 事件并列，便于事后审计"计划是否被驳回过"）
+            if _plan_verdict is not None:
+                await parameter_experience.store_event(
+                    "plan_review",
+                    (f"iter={iteration} approved={_plan_verdict.approved} "
+                     f"risk={_plan_verdict.risk_level} replans={_plan_verdict.replans} "
+                     f"degraded={_plan_verdict.degraded} mode={task_plan.mode}"),
+                    metadata={
+                        "iteration": iteration,
+                        "approved": _plan_verdict.approved,
+                        "risk_level": _plan_verdict.risk_level,
+                        "denied_codes": _plan_verdict.denied_codes,
+                        "replans": _plan_verdict.replans,
+                        "degraded": _plan_verdict.degraded,
+                        "policy_version": _plan_verdict.policy_version,
+                    },
+                )
 
 
 
@@ -2630,6 +3026,10 @@ async def main(args) -> int:
                 iteration_records.append(_iter_record("max_iterations_reached"))
                 break
 
+    # P1-2 / P1-3：主循环结束后再结算一次（最后一轮的拒绝/确认裁决不遗漏）
+    await _flush_tool_guard_denials(parameter_experience, iteration)
+    await _flush_confirm_gate(parameter_experience, iteration)
+
     # 4. ParameterExperience Writeback + model file saving
 
     print("\n[Step 4] ParameterExperience Writeback & Model File Saving...")
@@ -2666,6 +3066,12 @@ async def main(args) -> int:
     if not ablation_cfg.optimization_workflow:
 
         print("  [Ablation] optimization_workflow: DISABLED — Step 4 skipped.")
+
+    elif not ablation_cfg.pe_writeback:
+
+        # P2-7：经验**回写**消融（与 parameter_experience_reuse 的"读取"正交）。
+        # false ⇒ Step 4 不 store、不 auto_promote；经验库保持只读。
+        print("  [Ablation] pe_writeback: DISABLED — Step 4 不回写 PE、不 auto_promote.")
 
     elif rl_result and rl_result.get("status") in _persistable_statuses:
 
@@ -2901,6 +3307,11 @@ async def main(args) -> int:
         except Exception as _snap_exc:
             print(f"  [Snapshot] write failed: {_snap_exc}")
 
+    # P2-7：`ablation.report_generation=false` ⇒ Step 5 不生成、不落盘任何报告。
+    # 默认 true，行为与接入前逐字一致（report 非空 ⇒ 原样走下面的写盘分支）。
+    if not ablation_cfg.report_generation:
+        print("  [Ablation] report_generation: DISABLED — Step 5 skipped（不产 report_*.md）。")
+
     report = generate_report(args.prompt, initial_auto_params, rl_result,
 
                              run_start=_run_start, run_end=_run_end,
@@ -2917,35 +3328,80 @@ async def main(args) -> int:
 
                              iteration_records=iteration_records,
 
-                             ablation_cfg=ablation_cfg)
+                             ablation_cfg=ablation_cfg) if ablation_cfg.report_generation else ""
 
-    
+    if report:
 
-    _report_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _report_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    report_path = Path(f"./guidance_output/report_{_report_ts}.md")
+        report_path = Path(f"./guidance_output/report_{_report_ts}.md")
 
-    report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(report_path, "w", encoding="utf-8") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
 
-        f.write(report)
+            f.write(report)
 
-    # Also write a fixed-name symlink / copy for tooling that expects report.md
+        # Also write a fixed-name symlink / copy for tooling that expects report.md
 
-    _latest_path = Path("./guidance_output/report_latest.md")
+        _latest_path = Path("./guidance_output/report_latest.md")
 
+        try:
+
+            _latest_path.write_text(report, encoding="utf-8")
+
+        except Exception:
+
+            pass
+
+        print(f"  Report saved to: {report_path}")
+
+        print(f"  Latest link  →  {_latest_path}")
+
+    # P2-1：户部 —— 把本次运行的 token/金额汇总落盘。
+    # 注意：逐次明细在每次 LLM 调用时**已同步追加**到 logs/token_usage.jsonl，
+    # 所以即便进程中途被杀也不丢账；这里补的是"本次运行合计"。
+    # 没有任何 LLM 调用 ⇒ flush() 不创建任何文件（与确认台账同口径）。
     try:
+        from multi_agent import cost_meter as _cost_end
 
-        _latest_path.write_text(report, encoding="utf-8")
-
-    except Exception:
-
+        _cost_snap = _cost_end.flush()
+        if _cost_snap is not None:
+            _unpriced = _cost_snap.get("n_unpriced", 0)
+            _cost_line = (
+                f"  [户部] 本次 LLM {_cost_snap['n_calls']} 次  "
+                f"tokens={_cost_snap['total_tokens']}  "
+                f"金额≈{_cost_snap['cost_usd']:.6f} {('USD' if _unpriced == 0 else 'USD(部分缺价)')}"
+            )
+            if _unpriced:
+                _cost_line += f"  ⚠️ {_unpriced} 次调用无单价（未计入金额）"
+            if _cost_snap.get("n_unobserved"):
+                _cost_line += f"  ⚠️ {_cost_snap['n_unobserved']} 次未取到用量"
+            print(_cost_line)
+    except Exception:  # pragma: no cover — 计费失败不得阻断收尾
         pass
 
-    print(f"  Report saved to: {report_path}")
+    # P2-6：工部 —— 把本次运行的指标快照上报 / 落盘。
+    # 零指标 ⇒ flush() 返回 None 且**不创建任何文件**（与成本账 / 确认台账同口径）；
+    # 上报失败只计数，不影响收尾。
+    try:
+        from multi_agent import metrics as _met_end
 
-    print(f"  Latest link  →  {_latest_path}")
+        _met_snap = _met_end.flush()
+        if _met_snap is not None:
+            _met_rep = dict(_met_snap.get("report") or {})
+            _met_line = (
+                f"  [工部] 运行指标 {_met_snap['n_series']} 条序列  "
+                f"({_met_snap.get('by_type')})  sink={_met_rep.get('sink')}"
+            )
+            if _met_rep.get("n_report_failed"):
+                _met_line += (
+                    f"  ⚠️ 上报失败 {_met_rep['n_report_failed']} 次"
+                    f"（{_met_rep.get('last_error', '')}）"
+                )
+            print(_met_line)
+    except Exception:  # pragma: no cover — 指标上报失败不得阻断收尾
+        pass
 
     print("\nWorkflow Complete!")
 
@@ -3360,29 +3816,26 @@ def generate_report(
 
     if ablation_cfg is not None:
 
-        _abl_fields = [
-
-            ("rl_optimization",            "RL 优化 (Step 3 PPO)"),
-
-            ("optimization_workflow",       "优化工作流 (Steps 3~4)"),
-
-            ("hermes_rl_tool",              "Hermes RL 工具 (matlab_rl_optimize)"),
-
-            ("parameter_experience_reuse",  "参数经验复用 (PE 热启动)"),
-
-            ("reflection_agent",            "反思智能体 (Step 3.5)"),
-
-            ("memory_search",               "Hermes 持久记忆 (agent_memory + session_search)"),
-
-        ]
+        # P2-7：报告消融表**由权威表派生**（`multi_agent/ablation_registry.py`）。
+        # 此前这里是手写 `_abl_fields`，与启动横幅 / config.yaml / AblationConfig
+        # 四处并存、互相漂移 —— `hermes_rl_tool`（死开关）一直列着，
+        # `optimization_workflow` 在报告里却不在 config.yaml。现在键集与标签**只有一处定义**。
+        # 只渲染 `kind=ablation_flag` 的**真·开关**（✅/❌）；模式开关
+        # （protocol_strict / tool_result_strict）与独立治理块（identity / cost / metrics）
+        # 语义不同，各有专用行，见下方。
+        try:
+            from multi_agent import ablation_registry as _abl_reg_r
+            _abl_flag_sws = _abl_reg_r.flag_switches()
+        except Exception:  # pragma: no cover — 权威表不可用不得阻断报告生成
+            _abl_flag_sws = ()
 
         _abl_rows = []
 
         _any_disabled = False
 
-        for _field, _label in _abl_fields:
+        for _sw in _abl_flag_sws:
 
-            _enabled = getattr(ablation_cfg, _field, True)
+            _enabled = bool(getattr(ablation_cfg, _sw.key, _sw.default))
 
             _status = "✅ 开启" if _enabled else "❌ 关闭"
 
@@ -3390,7 +3843,88 @@ def generate_report(
 
                 _any_disabled = True
 
-            _abl_rows.append(f"| {_label} | {_status} |")
+            _abl_rows.append(f"| {_sw.label} | {_status} |")
+
+        # P2-2 吏部身份治理：不在 ablation 块内（属独立 governance 配置），单列一行，
+        # 使"本次运行的权限授予方是否启用 / 运行身份是谁"在报告里可查。
+        try:
+            from multi_agent.config_loader import get_config as _get_cfg_r
+            _ident_cfg_r = getattr(_get_cfg_r(), "identity", None)
+        except Exception:  # pragma: no cover
+            _ident_cfg_r = None
+        if _ident_cfg_r is not None:
+            _ident_on = getattr(_ident_cfg_r, "enabled", True)
+            if not _ident_on:
+                _any_disabled = True
+            _abl_rows.append(
+                "| 吏部身份治理 (角色注册 + 用户画像) | "
+                + ("✅ 开启" if _ident_on else "❌ 关闭") + " |"
+            )
+
+        # P2-1 户部成本核算：同样不在 ablation 块内（属独立 cost 配置），单列一行，
+        # 使"本次运行有没有在计费、处于哪种模式"在报告里可查。
+        try:
+            from multi_agent.config_loader import get_config as _get_cfg_c
+            _cost_cfg_r = getattr(_get_cfg_c(), "cost", None)
+        except Exception:  # pragma: no cover
+            _cost_cfg_r = None
+        if _cost_cfg_r is not None:
+            _cost_on = getattr(_cost_cfg_r, "enabled", True)
+            _cost_mode_r = str(getattr(_cost_cfg_r, "mode", "audit") or "audit")
+            if not _cost_on:
+                _any_disabled = True
+            _abl_rows.append(
+                "| 户部成本核算 (Token/金额计量 + 运行预算) | "
+                + ("✅ 开启" if _cost_on else "❌ 关闭") + f"（mode={_cost_mode_r}） |"
+            )
+
+        # P2-4 礼部协议校验：**刻意不用 ✅/❌ 渲染** —— `protocol_strict=false`
+        # 是 audit 模式（留痕不拦），是**有意的默认**，不是"模块被关掉"。
+        # 用 开启/关闭 表示会把 audit 误读成消融，故此处按"模式"呈现。
+        try:
+            from multi_agent.integration import agent_protocol as _ap_r
+            from multi_agent import prompt_registry as _pr_r
+            _pr_r_sum = _pr_r.summary()
+            _abl_rows.append(
+                "| 礼部子智能体间协议 (输出契约 + 提示词台账) | "
+                + ("🚧 强制 (strict)" if _ap_r.is_strict() else "📝 审计 (audit)")
+                + f"｜契约 {len(_ap_r.PROTOCOL_AGENTS)} 个，提示词台账 "
+                + f"v{_pr_r_sum['registry_version']} 共 {_pr_r_sum['total']} 条 |"
+            )
+        except Exception:  # pragma: no cover
+            pass
+
+        # P2-5 兵部返回类型统一：同 P2-4，**刻意不用 ✅/❌** —— `tool_result_strict=false`
+        # 是 audit（与接入前逐字等价），是有意的默认，不是"模块被关掉"。
+        try:
+            from multi_agent.tools import tool_result as _tr_r
+            _tr_rep = _tr_r.shape_report()
+            _abl_rows.append(
+                "| 兵部工具返回类型 (dict / JSON 串统一 + 强制) | "
+                + ("🚧 强制 (strict)" if _tr_rep["strict"] else "📝 审计 (audit)")
+                + f"｜登记 {_tr_rep['n_tools']} 个工具，形态 "
+                + " · ".join(f"{k} {v}" for k, v in _tr_rep["by_shape"].items()) + " |"
+            )
+        except Exception:  # pragma: no cover
+            pass
+
+        # P2-6 工部运行指标：这里 `enabled=false` 是**真·关闭**（等价接入前，全 API
+        # no-op），与户部成本核算同款，故用 ✅/❌；`sink=none` 只是"采集不上报"，
+        # 是有效配置，故把它写在括号里而不是当成关闭。
+        try:
+            from multi_agent import metrics as _met_r
+            _met_rep = _met_r.child_env_summary()
+            if _met_rep.get("loaded"):
+                if not _met_rep.get("enabled"):
+                    _any_disabled = True
+                _abl_rows.append(
+                    "| 工部运行指标 (采集 + 上报) | "
+                    + ("✅ 开启" if _met_rep.get("enabled") else "❌ 关闭")
+                    + f"（sink={_met_rep.get('sink')}，已采集 "
+                    + f"{_met_rep.get('n_series', 0)} 条序列） |"
+                )
+        except Exception:  # pragma: no cover
+            pass
 
         _abl_note = (
 
@@ -3418,6 +3952,55 @@ def generate_report(
 
         ] + _abl_rows + [""]
 
+        # P2-1 户部：成本核算小节。明细直接读模块级 meter 单例；无计量则整节不出现，
+        # 因此关闭计量时报告与接入前逐字相同。
+        try:
+            from multi_agent import cost_meter as _cost_rep
+            _cost_rep_meter = _cost_rep.get_cost_meter()
+            _cost_rep_snap = _cost_rep_meter.snapshot() if _cost_rep_meter is not None else None
+        except Exception:  # pragma: no cover
+            _cost_rep_snap = None
+        if _cost_rep_snap and int(_cost_rep_snap.get("n_calls", 0)) > 0:
+            _cs = _cost_rep_snap
+            _cs_claim = "（**不完整**：有调用查不到单价，金额偏小）" if not _cs.get("cost_complete") else ""
+            lines += [
+                "## 成本核算 (户部)",
+                "",
+                f"> LLM 调用 **{_cs['n_calls']}** 次，合计 **{_cs['total_tokens']}** tokens，"
+                f"金额 **≈{_cs['cost_usd']:.6f} USD**{_cs_claim}。",
+                "",
+                f"> 价目表版本 `{_cs['pricing_version']}`；未取到用量 {_cs['n_unobserved']} 次；"
+                f"无单价 {_cs['n_unpriced']} 次；被预算拦下 {_cs['n_blocked']} 次。",
+                "",
+                "| 模型 | 调用 | prompt tokens | completion tokens | total tokens | 金额(USD) |",
+                "|------|:----:|--------------:|------------------:|-------------:|----------:|",
+            ]
+            for _m, _v in sorted(_cs["by_model"].items(),
+                                 key=lambda kv: -kv[1]["total_tokens"]):
+                lines.append(
+                    f"| {_m} | {_v['calls']} | {_v['prompt_tokens']} | "
+                    f"{_v['completion_tokens']} | {_v['total_tokens']} | "
+                    f"{_v['cost_usd']:.6f}{' *' if _v['unpriced_calls'] else ''} |"
+                )
+            lines.append("")
+            if _cs["by_label"]:
+                lines += [
+                    "| 调用点 | 调用 | total tokens | 金额(USD) |",
+                    "|------|:----:|-------------:|----------:|",
+                ]
+                for _lbl, _v in sorted(_cs["by_label"].items(),
+                                       key=lambda kv: -kv[1]["total_tokens"]):
+                    lines.append(
+                        f"| {_lbl} | {_v['calls']} | {_v['total_tokens']} | "
+                        f"{_v['cost_usd']:.6f}{' *' if _v['unpriced_calls'] else ''} |"
+                    )
+                lines.append("")
+            lines += [
+                "> `*` = 该行有调用查不到单价，金额偏小（**token 数仍然准确**）。",
+                "> 逐次明细见 `logs/token_usage.jsonl`；本表为本次运行合计。",
+                "",
+            ]
+
     # ── Multi-iteration design path ───────────────────────────────────────────────────────────────────
 
     if iteration_records:
@@ -3435,6 +4018,8 @@ def generate_report(
             "ablation_optim_workflow_disabled":  "消融逻辑截止",
 
             "ablation_reflection_disabled":      "反思关闭",
+
+            "cost_budget":                       "预算截止 ⏹",
 
         }
 
@@ -4062,6 +4647,14 @@ if __name__ == "__main__":
         type=int,
         default=8765,
         help="--serve-tasks HTTP 端口（默认 8765）",
+    )
+    parser.add_argument(
+        "--user",
+        type=str,
+        default=None,
+        help="P2-2 吏部：本次运行的**用户**身份（画像 user_profiles.json 的键）。"
+             "未给则用 identity.default_user，再为空则匿名运行（回落 anonymous_role）。"
+             "具名但无画像 ⇒ 最小权限（fail-closed）。",
     )
 
     group = parser.add_mutually_exclusive_group(required=False)

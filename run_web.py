@@ -50,6 +50,14 @@ def _background_init(mgr: "KnowledgeManager", root: str) -> None:
     到底卡在哪一步。
     """
     try:
+        # P0-2：先把工程根注入管理器，供失败案例归档定位经验卡目录
+        # （{root}/deliverables/experience_cards）。必须在此无条件设置：
+        # 下面「已索引 → 仅重建 BM25」分支不会调用 seed_four_libraries()，
+        # 若只在播种分支设置，则生产环境（chroma 非空）_base_dir 恒为 None，
+        # 导致 POST /api/failure 返回「未播种过」而归档失败。
+        # set_base_dir 只赋值路径、无副作用；验收脚本自行构造 KnowledgeManager
+        # 且不经过本函数，仍保持「未播种 → 不碰磁盘」的隔离性。
+        mgr.set_base_dir(str(root))
         mode = "纯 BM25" if not getattr(mgr, "vector_enabled", True) else "向量+BM25"
         print(f"[bg] 开始后台初始化（模式：{mode}）…", flush=True)
         ok = asyncio.run(asyncio.wait_for(mgr.ensure_ready(), timeout=120.0))

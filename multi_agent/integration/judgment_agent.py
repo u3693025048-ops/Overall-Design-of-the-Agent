@@ -352,6 +352,10 @@ class JudgmentAgent:
         try:
             from langchain_core.messages import HumanMessage
             response = await llm.ainvoke([HumanMessage(content=extract_prompt)])
+            # P2-1 户部：记一次真实用量（langchain AIMessage 走 usage_metadata；
+            # 取不到时只计 n_unobserved，不填零）
+            from multi_agent import cost_meter as _cost
+            _cost.record(response, label="judgment_agent.condition_extract")
             content = response.content
             content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
             content = re.sub(r"```(?:json)?", "", content).strip().strip("`").strip()

@@ -545,6 +545,9 @@ class GuidanceLawCompatibilityTool:
                 temperature=0.0,
                 max_tokens=max_tokens,
             )
+            # P2-1 户部：记一次真实用量（未装载计量时 record() 是纯 no-op）
+            from multi_agent import cost_meter as _cost
+            _cost.record(resp, model=cfg.model, label="compat_verify.llm")
             return (resp.choices[0].message.content or "").strip()
         except Exception as exc:
             logger.warning("[CompatVerify] LLM call failed: %s", exc)

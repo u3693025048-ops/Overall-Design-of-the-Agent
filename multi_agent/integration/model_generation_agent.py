@@ -827,6 +827,9 @@ class ModelGenerationAgent:
                 HumanMessage(content=prompt),
             ]
             response = await self.llm.ainvoke(messages)
+            # P2-1 户部：记一次真实用量（langchain AIMessage 走 usage_metadata）
+            from multi_agent import cost_meter as _cost
+            _cost.record(response, label="model_generation.llm")
             content = response.content if hasattr(response, "content") else str(response)
             return content.strip()
         except Exception as exc:

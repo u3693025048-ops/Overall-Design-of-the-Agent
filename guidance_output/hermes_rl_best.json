@@ -30,6 +30,6 @@
   "best_reward": 0.0,
   "total_episodes": 3,
   "outer_iterations": 5,
-  "task_mode": "MODIFY_LAW",
-  "best_selection": "MODIFY_LAW"
+  "task_mode": "TUNE_PARAMS",
+  "best_selection": "TUNE_PARAMS"
 }

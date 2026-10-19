@@ -105,6 +105,8 @@ async def ensure_script_ready_for_layer3(
         RunSimulationTool,
     )
     from multi_agent.tools.syntax_check_tool import SyntaxCheckMATLABTool
+    # P2-5 兵部：工具返回类型统一层（dict / JSON 字符串混用 → 统一归一）
+    from multi_agent.tools import tool_result as _tr
 
     cfg = get_config()
     if not enabled:
@@ -140,6 +142,7 @@ async def ensure_script_ready_for_layer3(
             nmc=smoke_nmc,
             force_kb_template=True,
         )
+        gen_result = _tr.as_dict(gen_result)
         if gen_result.get("status") != "success":
             msg = gen_result.get("message", "generate_matlab 失败")
             return False, path, {}, f"KB 模板 generate_matlab 失败: {msg}"
@@ -155,10 +158,11 @@ async def ensure_script_ready_for_layer3(
     syntax_raw = await syntax_tool.execute(
         script_path=path, auto_fix=True, llm_fix=False, max_fix_attempts=0,
     )
-    try:
-        syntax_result = json.loads(syntax_raw)
-    except json.JSONDecodeError:
-        syntax_result = {"valid": False, "issues": [syntax_raw[:200]]}
+    # P2-5：不再对工具原始返回裸跑 `json.loads`（此前 dict 形态会抛 TypeError、
+    # 裸文本才走 JSONDecodeError 兜底）；统一归一，兜底语义保留在调用点。
+    syntax_result = _tr.as_dict(
+        syntax_raw, default={"valid": False, "issues": [str(syntax_raw)[:200]]}
+    )
     fixed_path = syntax_result.get("fixed_path") or path
     if fixed_path and os.path.isfile(fixed_path):
         path = fixed_path
@@ -219,6 +223,7 @@ async def ensure_script_ready_for_layer3(
             mission_conditions=mission_conditions_str,
             nmc=smoke_nmc,
         )
+        sim_result = _tr.as_dict(sim_result)
         if sim_result.get("status") != "success":
             err = sim_result.get("message") or sim_result.get("stderr") or "unknown"
             stderr = (sim_result.get("stderr") or sim_result.get("message") or "")[:2000]
@@ -233,6 +238,7 @@ async def ensure_script_ready_for_layer3(
                     mission_conditions=mission_conditions_str,
                     nmc=smoke_nmc,
                 )
+                sim_result = _tr.as_dict(sim_result)
             if sim_result.get("status") != "success":
                 err = sim_result.get("message") or sim_result.get("stderr") or err
                 return False, target_path, {}, f"run_simulation 烟雾测试失败: {err[:300]}"
@@ -258,6 +264,7 @@ async def ensure_script_ready_for_layer3(
                 nmc=smoke_nmc,
                 force_kb_template=True,
             )
+            gen_result = _tr.as_dict(gen_result)
             if gen_result.get("status") != "success":
                 return False, path, metrics, smoke_msg
             new_path = gen_result.get("script_path", "")
@@ -292,6 +299,7 @@ async def ensure_script_ready_for_layer3(
                     mission_conditions=mission_conditions_str,
                     nmc=gate_nmc,
                 )
+                sim_result = _tr.as_dict(sim_result)
                 if sim_result.get("status") != "success":
                     err = sim_result.get("message") or sim_result.get("stderr") or "unknown"
                     return False, path, metrics, f"MODIFY 闭环快扫失败: {err[:300]}"

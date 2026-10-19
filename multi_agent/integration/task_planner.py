@@ -22,6 +22,19 @@ class ExecutionStrategy(Enum):
     PARALLEL = "parallel"  # 并行拆分执行
 
 
+# ── P1-5：拆分执行入口收敛 ───────────────────────────────────────────────────
+# 原 `subagent.py::SubagentManager` 为每个子任务派生**独立 Hermes agent**，并以
+# "provider 工具列表为空则回退到父 agent 工具列表"的方式继承**父级全量工具集**，
+# 绕过 P1-2 权限闸门 / P1-3 确认闸门 / P1-4 白名单校验；同时与
+# `sub_agent.SpecializedSubAgent` 构成重复实现。该模块已删除。
+#
+# 计划拆分本就由门下省（P1-1）统一裁决（`PERM-DELEGATE-DENIED` /
+# `PLAN-COUNT-OVER-LIMIT`），缺省配置下不会拆分；若拆分入口被直接调用，一律
+# **fail-closed** 返回结构化拒绝，绝不回退到不受管控的执行器。合法的多智能体
+# 协作入口是 `delegate_tool` 的**具名专家子智能体**（受角色域 + 确认闸门约束）。
+SPLIT_EXECUTION_DISABLED = "split_execution_disabled"
+
+
 @dataclass
 class TaskPlan:
     """任务规划"""
@@ -49,6 +62,39 @@ class TaskPlan:
     # Each element is a MATLAB-style condition string like "RUN_CASE='T';SUB_IDX=1;"
     # derived by the LLM during planning.  Empty list = fall back to regex parse.
     subtask_conditions: List[str] = None
+    # ── 门下省审核裁定（P1-1）──────────────────────────────────────────────
+    # `plan_review.PlanReviewer` 的裁定快照（dict，见 ReviewVerdict.to_dict）。
+    # 审核关闭 / 未接入时为 None —— 规划器自身不产生该字段，由审核层回填。
+    review_verdict: Optional[Dict[str, Any]] = None
+
+
+def _split_execution_refusal(strategy: str, task: str, plan: TaskPlan) -> Dict[str, Any]:
+    """拆分执行入口的 fail-closed 拒绝载荷（P1-5）。
+
+    与 `_execute_single` 返回同形（dict + `status`），使调用方无需特判即可识别；
+    `status` 取 `"unsupported"` 以区别于 `"completed"` / `"failed"`。绝不抛异常，
+    也绝不回退到不受管控的执行器。
+    """
+    subtasks = list(getattr(plan, "subtasks", None) or [])
+    logger.error(
+        "[Planner] 拆分执行已收敛，拒绝执行（strategy=%s, code=%s, subtasks=%d）",
+        strategy, SPLIT_EXECUTION_DISABLED, len(subtasks),
+    )
+    return {
+        "status": "unsupported",
+        "code": SPLIT_EXECUTION_DISABLED,
+        "strategy": strategy,
+        "original_task": task,
+        "subtasks": subtasks,
+        "subagent_count": 0,
+        "reason": (
+            "任务拆分执行入口已收敛（P1-5）：原 `subagent.SubagentManager` 属重复实现，"
+            "且会派生**继承全量工具集**的子 agent（绕过 P1-2 权限闸门 / P1-3 确认闸门 / "
+            "P1-4 白名单校验），已删除。计划拆分由门下省（P1-1）统一裁决；"
+            "多智能体协作请经 `delegate_tool` 具名专家或单智能体路径。"
+        ),
+        "plan_reason": getattr(plan, "reason", ""),
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -169,6 +215,9 @@ class IntelligentTaskPlanner:
                 ],
                 stream=False,
             )
+            # P2-1 户部：记一次真实用量（未装载计量时 record() 是纯 no-op）
+            from multi_agent import cost_meter as _cost
+            _cost.record(_resp, model=_model, label="task_planner.direct")
             return _resp.choices[0].message.content or ""
         except (_oai.APITimeoutError, _oai.APIConnectionError) as _exc:
             logger.warning(f"[Planner] _direct_llm_call network error ({type(_exc).__name__}): {_exc}")
@@ -1278,54 +1327,16 @@ subtask_conditions 填写规则（简单映射，照抄即可）：
         }
 
     async def _execute_parallel(self, task: str, plan: TaskPlan) -> Dict[str, Any]:
-        """并行执行多个子任务"""
-        from .subagent import SubagentManager, SubagentConfig
+        """并行拆分执行 —— **fail-closed**（P1-5）。
 
-        manager = SubagentManager(self.hermes)
-
-        results = await manager.delegate_parallel(
-            tasks=plan.subtasks,
-            configs=[
-                SubagentConfig(name=f"parallel_{i}", max_iterations=30)
-                for i in range(len(plan.subtasks))
-            ],
-        )
-
-        aggregated = await manager.aggregate_results(results, strategy="all")
-
-        return {
-            "status": "completed",
-            "strategy": "parallel",
-            "original_task": task,
-            "subtasks": plan.subtasks,
-            "results": [r.result for r in results if r.status == "completed"],
-            "aggregated_result": aggregated,
-            "subagent_count": len(plan.subtasks),
-            "plan_reason": plan.reason,
-        }
+        原实现经 `subagent.SubagentManager` 为每个子任务派生独立 agent 并继承
+        父级**全量工具集**，绕过 P1-2/P1-3/P1-4 三层工具边界管控；该模块已作为
+        重复实现删除。合法的多智能体协作入口是 `delegate_tool` 具名专家子智能体。
+        等价的"任意子任务"通用并行执行**刻意不提供**——它无法通过角色域闸门。
+        """
+        return _split_execution_refusal("parallel", task, plan)
 
     async def _execute_sequential(self, task: str, plan: TaskPlan) -> Dict[str, Any]:
-        """顺序执行多个子任务"""
-        from .subagent import SubagentManager, SubagentConfig
-
-        manager = SubagentManager(self.hermes)
-        all_results = []
-
-        for i, subtask in enumerate(plan.subtasks):
-            logger.info(f"[Planner] Sequential step {i + 1}/{len(plan.subtasks)}")
-            result = await manager.delegate(
-                task=subtask,
-                config=SubagentConfig(name=f"seq_{i}", max_iterations=30),
-            )
-            all_results.append(result)
-
-        return {
-            "status": "completed",
-            "strategy": "sequential",
-            "original_task": task,
-            "subtasks": plan.subtasks,
-            "results": [r.result for r in all_results if r.status == "completed"],
-            "subagent_count": len(plan.subtasks),
-            "plan_reason": plan.reason,
-        }
+        """顺序拆分执行 —— **fail-closed**（P1-5）。语义同 `_execute_parallel`。"""
+        return _split_execution_refusal("sequential", task, plan)
 

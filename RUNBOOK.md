@@ -27,10 +27,18 @@ llm:
 
 ```yaml
 simulation:
-  engine: matlab          # 或 octave
-  matlab_path: matlab     # Windows 可填绝对路径
+  engine: auto            # auto = 自动优选 matlab_engine → matlab → octave → python
+  matlab_path: matlab     # 本机可填绝对路径，如 D:/MATLAB/R2025a/bin/matlab.exe
   octave_path: octave
 ```
+
+> `engine: auto` 会**优先使用 in-process 常驻 `matlab.engine` 会话**（冷启动只付一次，
+> 之后单次评估 0.2–0.6 s）；未安装 MATLAB Engine API for Python、或 Python ≥ 3.13 时
+> **自动回落** `matlab -batch` 子进程，无需手工切换。想强制走子进程：把 `auto` 改回 `matlab`。
+>
+> 启用 in-process 支持（需本机 MATLAB + license，Python 须 ≤ 3.12）：
+> `cd <matlabroot>/extern/engines/python && <venv>/Scripts/python.exe -m pip install .`
+> —— 不装也能跑，只是会回落子进程。
 
 ---
 

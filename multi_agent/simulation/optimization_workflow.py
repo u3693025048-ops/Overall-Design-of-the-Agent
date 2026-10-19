@@ -84,6 +84,8 @@ class OptimizationWorkflow:
         optimizer_backend: Optional[str] = None,
         kb_manager=None,
         emit_next_action_json: bool = True,
+        run_id: Optional[str] = None,
+        runs_root: Optional[str] = None,
     ):
         self.rl_optimizer = rl_optimizer
         self.judgment_agent = judgment_agent
@@ -97,6 +99,10 @@ class OptimizationWorkflow:
         # 可机检的 next_action.json。为 None 时行为完全不变（纯策略决策）。
         self.kb_manager = kb_manager
         self.emit_next_action_json = emit_next_action_json
+        # P0-4：C4 产物归跑次包（07_runs/{run_id}/）。run_id 缺省时在首次 C4 由任务
+        # 生成并固化（见 run() 的 Stage C4 块）；runs_root 缺省为 deliverables/07_runs。
+        self.run_id = run_id
+        self.runs_root = runs_root
 
     def _get_optimizer_backend(self):
         """Lazy-load the optimizer backend from config or explicit override."""
@@ -141,6 +147,7 @@ class OptimizationWorkflow:
         resume_checkpoint: Optional[str] = None,
         bw_finish_only: bool = False,
         warm_start_source: Optional[str] = None,
+        level: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Run the Layer 3 optimization workflow.
@@ -184,6 +191,33 @@ class OptimizationWorkflow:
                 "next_action": "tune_params",
                 "report_path": "",
             }
+
+        # P2-1 户部：成本预算与墙钟预算**并列**在入口咨询（形态一致，不另造调度点）。
+        # 未设限额 ⇒ should_stop() 恒 False ⇒ 与接入前逐字等价。
+        from multi_agent import cost_meter as _costw
+
+        if _costw.should_stop(reserve_ratio=0.10):
+            _cw = _costw.budget_status() or {}
+            logger.warning(
+                "[OptimWorkflow] Cost budget — returning best effort (tokens=%s/%s)",
+                _cw.get("used_tokens"),
+                _cw.get("limit_tokens"),
+            )
+            return {
+                "status": "needs_iteration",
+                "best_params": dict(initial_auto_params or {}),
+                "best_metrics": dict(initial_metrics or {}),
+                "suggestion": "运行成本预算已到，请使用当前最优结果或 golden 包",
+                "next_action": "tune_params",
+                "report_path": "",
+            }
+
+        # P2-6 工部：运行指标在入口记一笔（与墙钟 / 成本预算**并列**在同一运行
+        # 边界，不另造调度点）。未启用 ⇒ 全 no-op，等价接入前。
+        from multi_agent import metrics as _metw
+
+        _metw.counter("workflow_runs")
+        _metw.gauge("workflow_max_episodes", int(max_episodes or 0))
 
         logger.info(
             f"[OptimWorkflow] Starting | directly_satisfied={directly_satisfied} | "
@@ -711,27 +745,45 @@ class OptimizationWorkflow:
                     logger.info("[OptimWorkflow] Requirement gate: %s", _gate_note[:200])
 
         # ── Stage C4：RAG 增强 next_action 决策 + 产出 next_action.json ──────
+        # P0-4：产物归跑次包 deliverables/07_runs/{run_id}/next_action.json，
+        #       不再落 guidance_output/；同时回填 runs 的 run_dir / next_action* 列。
         _na_extra: Dict[str, Any] = {"next_action_json": None, "kb_context": []}
+        # 工况：mission_conditions 的键即 RUN_CASE（T/G/AP/R）；多键或空 → ALL
+        # （与 cli_agent 的 _rc_store 规则一致，不猜）。
+        _na_case: Optional[str] = None
+        if isinstance(mission_conditions, dict) and mission_conditions:
+            _na_keys = sorted(str(k) for k in mission_conditions.keys())
+            _na_case = _na_keys[0] if len(_na_keys) == 1 else "ALL"
+        _na_level = level
         if self.kb_manager is not None and self.emit_next_action_json:
             try:
-                from multi_agent.memory.kb_next_action import enrich_and_emit_next_action
+                from multi_agent.memory.kb_next_action import (
+                    default_run_id, enrich_and_emit_next_action,
+                )
 
                 _na_iter = len(optimization_history or [])
+                if not self.run_id:
+                    self.run_id = default_run_id(task_prompt)
                 _na_payload, _na_path = await enrich_and_emit_next_action(
                     self.kb_manager,
-                    os.path.join(self.output_dir, "next_action"),
+                    None,                      # P0-4：不再落 guidance_output/next_action/
+                    run_id=self.run_id,
+                    runs_root=self.runs_root,
                     task_prompt=task_prompt,
                     best_metrics=best_metrics,
                     suggestion=suggestion,
                     base_next_action=next_action,
                     iteration=_na_iter,
+                    case=_na_case,
+                    level=_na_level,
                 )
                 _na_extra["next_action_json"] = _na_path
                 _na_extra["kb_context"] = _na_payload.get("kb_context", [])
                 if _na_path:
                     logger.info(
-                        "[OptimWorkflow] C4 next_action.json -> %s (source=%s, hits=%s)",
-                        _na_path, _na_payload.get("source"), _na_payload.get("retrieved_count"),
+                        "[OptimWorkflow] C4 next_action.json -> %s (run_id=%s, source=%s, hits=%s)",
+                        _na_path, self.run_id, _na_payload.get("source"),
+                        _na_payload.get("retrieved_count"),
                     )
             except Exception as exc:  # 绝不拖死主循环
                 logger.warning("[OptimWorkflow] C4 next_action 增强失败（已跳过）: %s", exc)
@@ -757,6 +809,7 @@ class OptimizationWorkflow:
                 "best_metrics":    best_metrics,
                 "suggestion":      suggestion,
                 "next_action":     "done",
+                "run_id":          self.run_id,
                 "next_action_json": _na_extra["next_action_json"],
                 "kb_context":       _na_extra["kb_context"],
                 "report_path":     report_path,
@@ -779,6 +832,7 @@ class OptimizationWorkflow:
             "best_metrics":    best_metrics,
                 "suggestion":      suggestion,
                 "next_action":     next_action,
+                "run_id":          self.run_id,
                 "next_action_json": _na_extra["next_action_json"],
                 "kb_context":       _na_extra["kb_context"],
                 "report_path":     "",
@@ -892,6 +946,17 @@ class OptimizationWorkflow:
                     "[OptimWorkflow] Skip single-metric finish — wall-clock budget low"
                 )
                 return None
+            # P2-1 户部：成本预算不足时同样跳过这笔可选的追加计算
+            from multi_agent import cost_meter as _sm_cost
+            if _sm_cost.should_stop(reserve_ratio=0.10):
+                logger.info(
+                    "[OptimWorkflow] Skip single-metric finish — cost budget low"
+                )
+                return None
+            # P2-6 工部：本次追加计算确实要跑了 —— 记一笔（与上面两处预算检查并列）
+            from multi_agent import metrics as _sm_met
+
+            _sm_met.counter("single_metric_finish_runs")
             focus = tuple(failed)
             steps = int(getattr(cfg, "bw_finish_max_steps", 12))
             if focus != ("bw",):
@@ -1020,6 +1085,8 @@ class OptimizationWorkflow:
 
         run_tool = RunSimulationTool()
         run_tool.set_simulator(simulator)
+        # P2-5 兵部：消费工具返回前统一归一（不再按工具逐个假定 dict / JSON 串）
+        from multi_agent.tools import tool_result as _tr
         if self.parameter_experience is not None:
             run_tool.set_parameter_experience(self.parameter_experience)
         if mission_str:
@@ -1043,8 +1110,9 @@ class OptimizationWorkflow:
             logger.warning("[OptimWorkflow] Final MC validation failed: %s", exc)
             return metrics, False, f"Final MC validation failed: {exc}"
 
-        if not isinstance(result, dict) or result.get("status") != "success":
-            msg = (result or {}).get("message", "unknown error") if isinstance(result, dict) else "unknown error"
+        result = _tr.as_dict(result)
+        if result.get("status") != "success":
+            msg = result.get("message", "unknown error")
             return metrics, False, f"Final MC validation failed: {msg}"
 
         final_metrics = dict(
@@ -1416,6 +1484,9 @@ class OptimizationWorkflow:
         from multi_agent.simulation.time_budget import get_run_budget
 
         _ex_budget = get_run_budget()
+        from multi_agent import cost_meter as _ex_cost
+        from multi_agent import metrics as _ex_met
+
         for round_i in range(1, max_rounds + 1):
             if _ex_budget and _ex_budget.should_stop(reserve_sec=120.0):
                 logger.warning(
@@ -1423,6 +1494,14 @@ class OptimizationWorkflow:
                     round_i,
                 )
                 break
+            # P2-1 户部：成本预算同样在每轮开头咨询（与墙钟预算并列）
+            if _ex_cost.should_stop(reserve_ratio=0.10):
+                logger.warning(
+                    "[ExpertTuning] Cost budget — stopping before round %d", round_i
+                )
+                break
+            # P2-6 工部：每轮 ExpertTuning 记一笔（与上面两处预算检查并列）
+            _ex_met.counter("expert_tuning_rounds")
             # Brief pause between rounds to avoid API rate-limiting
             if round_i > 1:
                 await asyncio.sleep(3)

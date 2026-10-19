@@ -116,20 +116,56 @@ class AblationConfig:
           rl_optimization:            { enabled: true }
           parameter_experience_reuse: { enabled: true }
           reflection_agent:           { enabled: true }
-          hermes_rl_tool:             { enabled: true }
+          kb_four_lib:                { enabled: true }
 
-    ``hermes_rl_tool`` is a finer-grained switch than ``rl_optimization``:
-    it only removes the ``matlab_rl_optimize`` tool from Hermes while
-    keeping the direct Step-3 RL loop intact.
+    ⚠️ **权威清单在 `multi_agent/ablation_registry.py`**（P2-7）。本类的字段集
+    必须与注册表里 `yaml_block="ablation"` 的键**逐字相等**：少一个 = 注册表要的
+    键关不掉，多一个 = 疑似死开关。两处一致性由
+    `scripts/check_p2_7_ablation.py` 把关 —— **新增开关要同时改两处**，机检会红。
+
+    ⚠️ 已删除的**死开关** `hermes_rl_tool`（P2-7 清理）：它自 `matlab_rl_optimize`
+    从 Hermes 工具集移除后就没有任何读取点（`hermes_integration.py` 注释早已声明
+    废弃）。留着只会让报告表列出一个"关了也没用"的开关。
     """
     rl_optimization: bool = True
     optimization_workflow: bool = True
     parameter_experience_reuse: bool = True
     reflection_agent: bool = True
-    hermes_rl_tool: bool = True
     memory_search: bool = True
     guidance_compat_verification: bool = True
     syntax_check: bool = True
+    # P2-7 知识库/经验资产级消融
+    # 四库 RAG / C4 next_action 增强：关闭 ⇒ Layer 3 不接四库（kb_manager=None）。
+    kb_four_lib: bool = True
+    # 知识台账（KBLedger）：关闭 ⇒ KnowledgeManager.ledger=None，不记账。
+    kb_ledger: bool = True
+    # 经验回写（Step 4 store + auto_promote）：与 parameter_experience_reuse（读取）
+    # 正交 —— 二者共同构成完整「去经验库」对照。
+    pe_writeback: bool = True
+    # P2-7 报告产物级消融（工程化对照，非科学实验维度）
+    report_generation: bool = True
+    # P1-1 门下省计划审核层：关闭后 TaskPlan 直接放行（等价于接入前行为）
+    plan_review: bool = True
+    # P1-2 工具调用边界权限闸门：关闭后所有工具调用透传（等价于接入前行为）
+    tool_guard: bool = True
+    # P1-3 高风险/不可逆操作确认闸门：关闭后所有工具调用透传（等价于接入前行为）
+    confirm_gate: bool = True
+    # P1-3 确认模式：enforce（未确认即不执行）| audit（放过但留痕）| off（透传）
+    confirm_mode: str = "enforce"
+    # P1-3 启动期一次性授权（无人值守批处理）；不可逆工具会被自动剔除
+    confirm_standing: Optional[List[str]] = None
+    # P1-3 是否直接拒绝不可逆操作（而非生成待确认）
+    confirm_deny_critical: bool = False
+    # P1-4 子智能体白名单严格模式：关闭后"无匹配回退全量工具"的行为恢复
+    # （等价于接入前），仅供消融对照；开启时零匹配即拒绝、具名专家失败不升级。
+    sub_agent_strict: bool = True
+    # P2-4 礼部 子智能体间协议严格模式：开启后不合规回复被换成结构化拒绝载荷；
+    # 默认 False = audit（只记日志与最近一次报告，**不改返回值**，等价接入前）。
+    protocol_strict: bool = False
+    # P2-5 兵部 工具返回类型严格模式：开启后偏离登记原生形态的工具返回被换成结构化
+    # 拒绝载荷（code=tool_result_shape_violation，含 raw_response）；默认 False = audit
+    # （handler 侧与接入前**逐字等价**：str 原样返回 / 其余 json.dumps）。
+    tool_result_strict: bool = False
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AblationConfig":
@@ -140,15 +176,36 @@ class AblationConfig:
                 return sub
             return default
 
+        _cg = data.get("confirm_gate", {})
+        if not isinstance(_cg, dict):
+            _cg = {}
+        _standing = _cg.get("standing")
+        if isinstance(_standing, str):
+            _standing = [s.strip() for s in _standing.split(",") if s.strip()]
+        elif _standing is not None and not isinstance(_standing, list):
+            _standing = None
+
         return cls(
             rl_optimization=_flag(data.get("rl_optimization", {})),
             optimization_workflow=_flag(data.get("optimization_workflow", {})),
             parameter_experience_reuse=_flag(data.get("parameter_experience_reuse", {})),
             reflection_agent=_flag(data.get("reflection_agent", {})),
-            hermes_rl_tool=_flag(data.get("hermes_rl_tool", {})),
             memory_search=_flag(data.get("memory_search", {})),
             guidance_compat_verification=_flag(data.get("guidance_compat_verification", {})),
             syntax_check=_flag(data.get("syntax_check", {})),
+            kb_four_lib=_flag(data.get("kb_four_lib", {})),
+            kb_ledger=_flag(data.get("kb_ledger", {})),
+            pe_writeback=_flag(data.get("pe_writeback", {})),
+            report_generation=_flag(data.get("report_generation", {})),
+            plan_review=_flag(data.get("plan_review", {})),
+            tool_guard=_flag(data.get("tool_guard", {})),
+            confirm_gate=_flag(_cg),
+            confirm_mode=str(_cg.get("mode", "enforce") or "enforce"),
+            confirm_standing=_standing,
+            confirm_deny_critical=bool(_cg.get("deny_critical", False)),
+            sub_agent_strict=_flag(data.get("sub_agent_strict", {})),
+            protocol_strict=_flag(data.get("protocol_strict", {}), default=False),
+            tool_result_strict=_flag(data.get("tool_result_strict", {}), default=False),
         )
 
 
@@ -865,9 +922,180 @@ class T4LowRiskConfig:
 
 
 @dataclass
+class IdentityConfig:
+    """P2-2 吏部 · 身份治理（角色注册 + 用户画像）。
+
+    ``enabled=False`` 时 `cli_agent` **不装载**身份治理：运行身份为空，
+    `plan_review` 收到 ``permissions=None``（= 全授予），行为与接入前一致。
+    ``enabled=True`` 时按画像授予计划级权限；**具名但未注册**的身份一律
+    最小权限（fail-closed）。
+    """
+
+    enabled: bool = True
+    # 默认运行身份（--user 未给时）：留空 ⇒ **匿名**，回落 anonymous_role
+    default_user: str = ""
+    # 匿名运行（未声明身份）所持的用户角色；保持为 operator 以等价接入前"全授予"
+    anonymous_role: str = "operator"
+    # 具名但未注册的身份是否最小权限（True = fail-closed，不建议关）
+    strict_unknown: bool = True
+    # 画像落盘路径；空 ⇒ <repo>/logs/user_profiles.json
+    profiles_path: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "IdentityConfig":
+        d = data if isinstance(data, dict) else {}
+        path = d.get("profiles_path")
+        return cls(
+            enabled=bool(d.get("enabled", True)),
+            default_user=str(d.get("default_user", "") or ""),
+            anonymous_role=str(d.get("anonymous_role", "operator") or "operator"),
+            strict_unknown=bool(d.get("strict_unknown", True)),
+            profiles_path=str(path) if path else "",
+        )
+
+
+@dataclass
+class CostConfig:
+    """P2-1 户部 · 成本核算与 Token 预算。
+
+    差距原文：``成本/Token 预算核算完全缺失：全仓无 token/cost 累计或阈值``。
+
+    ``enabled=False`` ⇒ **完全不装载**计量（不建对象、不写文件、不拦调用），
+    行为与接入前逐字等价。
+    ``mode`` 三态：``off``（透传）/``audit``（只记不拦，**默认**）/``enforce``
+    （超硬上限时在 LLM 调用边界拒绝新调用）。
+    """
+
+    enabled: bool = True
+    mode: str = "audit"
+    # 运行级预算上限；None / 0 表示该维度不限。两个都不限 ⇒ 预算不生效。
+    max_total_tokens: Optional[int] = None
+    max_cost_usd: Optional[float] = None
+    # 达到上限的百分之多少算 "warn"
+    warn_ratio: float = 0.8
+    # 价目表覆盖/扩展：{model: {prompt_per_million, completion_per_million}} 或 [p, c]
+    prices: Dict[str, Any] = field(default_factory=dict)
+    # 是否落盘（logs/token_usage.jsonl + summary）。**只在真有记录时才创建文件**。
+    persist: bool = True
+    # 自定义落盘路径；空 ⇒ <repo>/logs/token_usage.jsonl 与 ..._summary.json
+    usage_log_path: str = ""
+    summary_path: str = ""
+    # 是否从 openai SDK 层兜底插桩（覆盖 Hermes/子智能体等本仓无法插桩的路径）。
+    # ⚠️ 默认 False：本机无 hermes 包，该路径未被真实核验。
+    hook_openai_sdk: bool = False
+    # 内存里保留的明细条数上限（汇总计数不受影响）
+    max_records: int = 50000
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CostConfig":
+        d = data if isinstance(data, dict) else {}
+
+        def _opt_int(key: str) -> Optional[int]:
+            raw = d.get(key)
+            if raw in (None, "", 0, "0"):
+                return None
+            try:
+                return int(float(raw))
+            except (TypeError, ValueError):
+                return None
+
+        def _opt_float(key: str) -> Optional[float]:
+            raw = d.get(key)
+            if raw in (None, "", 0, "0"):
+                return None
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return None
+
+        mode = str(d.get("mode", "audit") or "audit").strip().lower()
+        if mode not in ("off", "audit", "enforce"):
+            mode = "audit"
+        prices = d.get("prices")
+        return cls(
+            enabled=bool(d.get("enabled", True)),
+            mode=mode,
+            max_total_tokens=_opt_int("max_total_tokens"),
+            max_cost_usd=_opt_float("max_cost_usd"),
+            warn_ratio=float(d.get("warn_ratio", 0.8) or 0.8),
+            prices=dict(prices) if isinstance(prices, dict) else {},
+            persist=bool(d.get("persist", True)),
+            usage_log_path=str(d.get("usage_log_path", "") or ""),
+            summary_path=str(d.get("summary_path", "") or ""),
+            hook_openai_sdk=bool(d.get("hook_openai_sdk", False)),
+            max_records=int(d.get("max_records", 50000) or 50000),
+        )
+
+
+@dataclass
+class MetricsConfig:
+    """P2-6 工部 · 运行指标采集与上报。
+
+    差距原文：``无监控指标上报、无部署、无 CI/CD``。
+
+    ``enabled=False`` ⇒ **完全不装载**指标管理器（不建对象、不写文件、不抛异常），
+    行为与接入前逐字等价；``sink`` 三态：
+
+    * ``none`` —— 不上报（仅在进程内消费 ``snapshot()``）；
+    * ``file`` —— 落 ``logs/metrics/``（``metrics.jsonl`` 追加 + summary/prom 覆盖）；
+    * ``http`` —— POST 快照到 ``http_url``（``urllib``，失败吞掉并计数）；
+      此时若 ``persist=true`` 会**同时**本地留档。
+
+    ⚠️ 落盘路径**不得**位于 ``deliverables/07_runs/`` —— 那是 P0-1b 跑次包背书
+    守卫的判据，``init_metrics()`` 会直接拒绝（不静默改道）。
+    """
+
+    enabled: bool = True
+    sink: str = "file"                 # none | file | http
+    persist: bool = True               # sink=http 时是否同时本地留档
+    jsonl_path: str = ""               # 空 ⇒ <repo>/logs/metrics/metrics.jsonl
+    summary_path: str = ""             # 空 ⇒ <repo>/logs/metrics/metrics_summary.json
+    prometheus_path: str = ""          # 空 ⇒ <repo>/logs/metrics/metrics.prom
+    write_jsonl: bool = True
+    write_prometheus: bool = True
+    http_url: str = ""                 # sink=http 时必填
+    http_timeout_sec: float = 3.0
+    http_headers: Dict[str, Any] = field(default_factory=dict)
+    max_series: int = 10000            # 基数护栏（标签爆炸时丢弃并计数）
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MetricsConfig":
+        d = data if isinstance(data, dict) else {}
+        sink = str(d.get("sink", "file") or "file").strip().lower()
+        if sink not in ("none", "file", "http"):
+            sink = "file"
+        headers = d.get("http_headers")
+        try:
+            timeout = float(d.get("http_timeout_sec", 3.0) or 3.0)
+        except (TypeError, ValueError):
+            timeout = 3.0
+        try:
+            max_series = int(d.get("max_series", 10000) or 10000)
+        except (TypeError, ValueError):
+            max_series = 10000
+        return cls(
+            enabled=bool(d.get("enabled", True)),
+            sink=sink,
+            persist=bool(d.get("persist", True)),
+            jsonl_path=str(d.get("jsonl_path", "") or ""),
+            summary_path=str(d.get("summary_path", "") or ""),
+            prometheus_path=str(d.get("prometheus_path", "") or ""),
+            write_jsonl=bool(d.get("write_jsonl", True)),
+            write_prometheus=bool(d.get("write_prometheus", True)),
+            http_url=str(d.get("http_url", "") or ""),
+            http_timeout_sec=timeout,
+            http_headers=dict(headers) if isinstance(headers, dict) else {},
+            max_series=max_series,
+        )
+
+
+@dataclass
 class AppConfig:
     """Application Configuration"""
     ablation: AblationConfig = field(default_factory=AblationConfig)
+    identity: IdentityConfig = field(default_factory=IdentityConfig)
+    cost: CostConfig = field(default_factory=CostConfig)
+    metrics: MetricsConfig = field(default_factory=MetricsConfig)
     parameter_experience: ParameterExperienceConfig = field(default_factory=ParameterExperienceConfig)
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
     ga: GAConfig = field(default_factory=GAConfig)
@@ -886,6 +1114,9 @@ class AppConfig:
     def from_dict(cls, data: Dict[str, Any]) -> "AppConfig":
         return cls(
             ablation=AblationConfig.from_dict(data.get("ablation", {})),
+            identity=IdentityConfig.from_dict(data.get("identity", {})),
+            cost=CostConfig.from_dict(data.get("cost", {})),
+            metrics=MetricsConfig.from_dict(data.get("metrics", {})),
             parameter_experience=ParameterExperienceConfig.from_dict(data.get("parameter_experience", {})),
             optimizer=OptimizerConfig.from_dict(data.get("optimizer", {})),
             ga=GAConfig.from_dict(data.get("ga", {})),

@@ -339,7 +339,7 @@ matlab_rl_optimizer:
   nmc_per_eval:  25            # 每回合蒙特卡洛次数
 
 simulation:
-  engine: matlab               # matlab_engine | matlab | octave | python
+  engine: auto                 # auto 自动优选 matlab_engine → matlab → octave → python
   mc_data_path: ""             # 外部 MC .mat 路径；为空时使用模板内部随机样本
 ```
 

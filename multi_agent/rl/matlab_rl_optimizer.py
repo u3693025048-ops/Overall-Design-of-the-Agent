@@ -754,6 +754,9 @@ def _parse_metrics_with_llm(raw: str) -> Dict[str, float]:
             temperature=get_safe_temperature(cfg.model, 0.0),
             max_tokens=128,
         )
+        # P2-1 户部：记一次真实用量（未装载计量时 record() 是纯 no-op）
+        from multi_agent import cost_meter as _cost
+        _cost.record(resp, model=cfg.model, label="rl.llm_metric_parse")
         content = resp.choices[0].message.content
         if not content:
             logger.warning("[LLM metric parse] LLM returned None content")

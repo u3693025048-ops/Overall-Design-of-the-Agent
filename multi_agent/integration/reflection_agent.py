@@ -330,6 +330,9 @@ next_action 和 design_path_analysis 是最关键的输出，决定下一轮迭�
                 "gf_source": gf_source,
                 "format_instructions": self.parser.get_format_instructions()
             })
+            # P2-1 户部：记一次真实用量（chain 输出为 AIMessage，走 usage_metadata）
+            from multi_agent import cost_meter as _cost
+            _cost.record(response_msg, label="reflection_agent.chain")
 
             # Surface reasoning content (chain-of-thought) for reasoning models
             # such as Claude-thinking, DeepSeek-R1, OpenAI o1/o3.

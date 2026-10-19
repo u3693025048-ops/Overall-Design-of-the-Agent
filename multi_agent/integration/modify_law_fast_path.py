@@ -52,6 +52,8 @@ async def run_modify_law_t4_fast_path(
     from multi_agent.tools.simulation_tool import GenerateMATLABTool, RunSimulationTool
     from multi_agent.tools.syntax_check_tool import SyntaxCheckMATLABTool
     from multi_agent.tools.judge_requirements_tool import JudgeRequirementsTool
+    # P2-5 兵部：工具返回类型统一层（此处四个工具形态并不一致）
+    from multi_agent.tools import tool_result as _tr
 
     gen = GenerateMATLABTool()
     syn = SyntaxCheckMATLABTool()
@@ -69,6 +71,7 @@ async def run_modify_law_t4_fast_path(
         autopilot_params=ap,
         nmc=nmc,
     )
+    gen_result = _tr.as_dict(gen_result)
     if gen_result.get("status") != "success":
         return {
             "ok": False,
@@ -85,10 +88,7 @@ async def run_modify_law_t4_fast_path(
         llm_fix=False,
         max_fix_attempts=0,
     )
-    try:
-        syn_result = json.loads(syn_raw)
-    except json.JSONDecodeError:
-        syn_result = {"valid": False}
+    syn_result = _tr.as_dict(syn_raw, default={"valid": False})
     script_path = syn_result.get("fixed_path") or script_path
     if not syn_result.get("valid"):
         return {
@@ -104,6 +104,7 @@ async def run_modify_law_t4_fast_path(
         mission_conditions=mission_conditions_str,
         nmc=nmc,
     )
+    sim_result = _tr.as_dict(sim_result)
     if sim_result.get("status") != "success":
         return {
             "ok": False,
@@ -119,10 +120,7 @@ async def run_modify_law_t4_fast_path(
         script_path=script_path,
         task_prompt=task_prompt,
     )
-    try:
-        judge_result = json.loads(judge_raw) if isinstance(judge_raw, str) else judge_raw
-    except json.JSONDecodeError:
-        judge_result = {}
+    judge_result = _tr.as_dict(judge_raw, default={})
     satisfied = bool(judge_result.get("satisfied"))
 
     logger.info(

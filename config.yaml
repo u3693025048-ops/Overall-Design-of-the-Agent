@@ -10,7 +10,7 @@
 #
 # 使用说明:
 #   1. 填入 llm.api_key / rag.embedding_api_key
-#   2. 设置 simulation.engine / octave_path / matlab_path
+#   2. 设置 simulation.engine / octave_path / matlab_path  MATLAB+license
 #   3. python cli_agent.py --prompt "您的任务描述"
 # 所有相对路径均以运行 cli_agent.py 的目录为基准。
 # =============================================================================
@@ -20,7 +20,15 @@
 # 消融实验开关 (Ablation Study Flags)
 # =============================================================================
 #
-# 六个消融维度:
+# ⚠️ **单一权威表**：`multi_agent/ablation_registry.py`（P2-7）。本块里的键集
+#    必须与注册表里 `yaml_block="ablation"` 的条目**逐字相等**，与
+#    `config_loader.AblationConfig` 的字段集也**逐字相等**。三处一致性由
+#    `scripts/check_p2_7_ablation.py` 把关；新增开关要同时改「注册表 + 本文件 +
+#    AblationConfig」三处，漏一处机检会红 —— **刻意如此**（宁可红，不可静默漂移）。
+#    历史教训：`hermes_rl_tool` 曾是死开关（三处都在、全仓无读取点，P2-7 已删）；
+#    `optimization_workflow` 曾在代码里在用却本处没有（关不掉，P2-7 已补）。
+#
+# 六个科学消融维度（论文 §4.2 口径，对应上表的八组实验）:
 #   1. guidance_compat_verification  → Hermes 工具: verify_guidance_compat
 #                                      制导律修改后的数学适配性证明（控制论带宽分离/稳定裕度）
 #                                      false → 跳过适配性验证，直接进入仿真
@@ -31,12 +39,24 @@
 #                                      false → 跳过 RL，仅用 Hermes 初始参数单次仿真
 #   4. parameter_experience_reuse    → 历史参数经验库 (ParameterExperience)
 #                                      false → 不加载 pe_best/pe_search 工具，从零推导参数
+#                                      ⚠️ 只关**读取**；**写回**另由 pe_writeback 关
 #   5. memory_search                 → Hermes 持久记忆 + 情节记忆 + session_search
 #                                      false → 禁用 agent_memory_*/session_search，
 #                                              不注入情节事件，不保存/读取跨会话记忆
 #   6. max_iterations (workflow)     → 外层「生成-仿真-反思」迭代轮次
 #                                      在 workflow.max_iterations 中设置（见下方）
 #                                      消融时设为 1（单轮）对比完整多轮迭代
+#
+# 另有**工程化消融开关**（P2-7 补全，不属于论文 §4.2 的六维，供运维/对照用）:
+#   · optimization_workflow  → Layer 3 优化工作流整体（Steps 3~4）
+#   · kb_four_lib            → 四库 RAG / C4 next_action 增强
+#   · kb_ledger              → 知识台账 KBLedger 记账
+#   · pe_writeback           → 经验回写（Step 4 store + auto_promote）
+#   · report_generation      → 报告生成（Step 5）
+#   · protocol_strict / tool_result_strict
+#                            → **模式开关**：false = audit（留痕不拦），**不是关闭**
+#   · plan_review / tool_guard / confirm_gate / sub_agent_strict
+#                            → P1 期安全闸门（false ⇒ 透传 = 等价接入前，仅供对照）
 #
 # 八组实验配置:
 #
@@ -66,14 +86,197 @@ ablation:
   rl_optimization:
     enabled: true            # PPO 强化学习参数优化
 
+  optimization_workflow:
+    enabled: true            # P2-7 补入：Layer 3 优化工作流整体（Steps 3~4）
+                             # 此前代码在用却未暴露，无法从 config.yaml 关掉
+
   parameter_experience_reuse:
-    enabled: true   # 历史参数经验库复用
+    enabled: true   # 历史参数经验库复用（**读取**；写回见 pe_writeback）
 
   reflection_agent:
     enabled: true            # 反思智能体（RL 早停判断）
 
   memory_search:
     enabled: true    # Hermes 持久记忆 + 情节记忆注入 + session_search
+
+  # ── P2-7 知识库 / 经验资产级消融 ────────────────────────────────────────────
+  kb_four_lib:
+    enabled: true    # 四库 RAG / C4 next_action 增强（false ⇒ Layer 3 不接四库）
+
+  kb_ledger:
+    enabled: true    # 知识台账 KBLedger 记账（false ⇒ runs/card_promotions 不记账）
+
+  pe_writeback:
+    enabled: true    # 经验回写（Step 4 store + auto_promote）
+                     # 与 parameter_experience_reuse（读取）**正交**：
+                     # 二者共同构成完整「去经验库」对照
+
+  plan_review:
+    enabled: true    # P1-1 门下省计划审核层（TaskPlan 送审：结构/权限/风险/事实）
+
+  tool_guard:
+    enabled: true    # P1-2 工具调用边界权限闸门（工具级/角色级校验，越权即拒不执行）
+
+  confirm_gate:
+    enabled: true    # P1-3 高风险/不可逆操作确认闸门（写文件/跑仿真/删记忆先确认）
+    mode: enforce    # enforce=未确认即不执行 | audit=放过但留痕 | off=透传
+    # 无人值守批处理：启动期一次性授权的**可复现工程动作**（留痕，by=operator）。
+    # 不可逆动作（agent_memory_forget）会被自动剔除，必须逐次人工批准。
+    # 需要逐次人工批准时把下面各项清空（standing: []）。
+    # ⚠️ `simulate_modelica` **刻意不在**此列：它拉起外部进程（真编译时分钟级），
+    #    按决策 4=(a) 必须**逐次人工确认**（confirm_gate 会生成待确认号）。
+    standing:
+      - generate_matlab
+      - syntax_check_matlab
+      - run_simulation
+      # 阶段 2：写本轮产物文件的确定性动作（重跑一次回到同一状态，可复现）
+      - requirement_to_ir
+      - render_ssim
+    deny_critical: false   # true 则直接拒绝不可逆操作（不生成待确认）
+
+  sub_agent_strict:
+    enabled: true    # P1-4 子智能体白名单严格模式（零匹配即拒绝；具名专家失败不升级全量）
+                     # 置 false 会恢复"无匹配回退全量工具"，仅供消融对照，**不建议**在生产关闭
+
+  report_generation:
+    enabled: true    # P2-7：报告生成（Step 5）。工程化消融，非科学实验维度
+                     # false ⇒ 不产 guidance_output/report_*.md 与 report_latest.md
+
+  # ── P2-4 礼部 · 子智能体间协议 ──────────────────────────────────────────────
+  # 差距原文：协议此前只是 system_context 里的"散文约定" + 各处自写正则抽取，
+  # 不合规时**没有任何一处会拒绝**。现由 agent_protocol 做输出契约校验：
+  #   · false（默认，= audit）→ 不合规只记 warning + 留最近一次报告，
+  #                             子智能体回复**原样返回**（行为等价接入前）；
+  #   · true（= strict）      → 不合规回复换成结构化拒绝载荷
+  #                             （code=agent_protocol_violation，含 raw_response）。
+  # 提示词台账见 multi_agent/prompt_registry.py（43 条：5 inline + 3 file + 35 anchor），
+  # 改动提示词后跑 `python scripts/check_prompts.py --update` 刷新指纹并提升 version。
+  protocol_strict:
+    enabled: false
+
+  # ── P2-5 兵部 · 工具返回类型统一 ─────────────────────────────────────────────
+  # 差距原文：「返回类型 Dict 与 JSON 字符串混用，未强制 JSON」。
+  # tools/ 下 15 个已注册工具里一部分 return {...}（dict）、一部分 return
+  # json.dumps({...})（JSON 串），call_specialist 还按分支返回不同形态。现在由
+  # multi_agent/tools/tool_result.py 登记每个工具的**原生形态**并提供统一入口：
+  #   · as_dict()  —— 内部（Python）消费恒得 dict；
+  #   · as_json()  —— 外发（LLM/registry）恒为合法 JSON 串；
+  #   · to_wire()  —— handler 边界强制归一（下面的开关驱动）。
+  #   false（默认，= audit）→ to_wire 与旧行为**逐字等价**（str 原样 / 其余 dumps）；
+  #   true（= strict）      → 偏离声明形态的返回换成结构化拒绝
+  #                           （code=tool_result_shape_violation，含 raw_response）；
+  #                           passthrough 工具（call_specialist）不受此限。
+  tool_result_strict:
+    enabled: false
+
+# =============================================================================
+# P2-2 吏部 · 身份治理（角色注册 + 用户画像）
+# =============================================================================
+# 前几轮建的三个闸门（P1-1 计划审核 / P1-2 工具边界权限 / P1-3 确认闸门）都需要
+# "谁授予权限"这一格；本块就是那个授予方。
+#
+#   注册表内置角色（role_registry.BUILTIN_ROLES）：
+#     执行角色：orchestrator / rag_agent / matlab_agent / sim_agent /
+#               analysis_agent / memory_agent / observer
+#     用户角色：operator(全权) ⊃ engineer(改律+跑优化) ⊃ analyst(只跑优化)
+#               ⊃ auditor(只读)；后三者 deny_critical=true（硬拒不可逆动作）
+#
+#   画像（user_profiles.json）记录"人"：展示名 / 岗位 / 所持用户角色 / 偏好。
+#
+# 语义：
+#   · enabled=false          → 不装载身份治理，plan_review 收 permissions=None
+#                              （= 全授予），行为与接入前一致；
+#   · 匿名运行（未声明身份）  → 回落 anonymous_role（默认 operator），
+#                              等价接入前"全授予"；
+#   · **具名但未注册**        → 最小权限（严格失败即拒绝，不回退全权）。
+identity:
+  enabled: true
+  default_user: ""          # 留空 ⇒ 匿名；CLI 也可用 --user 指定运行身份
+  anonymous_role: operator  # 匿名运行所持用户角色（保持 operator = 等价接入前）
+  strict_unknown: true      # 具名但未注册 ⇒ 最小权限（fail-closed），不建议关
+  profiles_path: ""         # 留空 ⇒ <repo>/logs/user_profiles.json
+
+
+# =============================================================================
+# P2-1 户部 · 成本核算与 Token 预算
+# =============================================================================
+# 差距原文：本仓此前「无 token/cost 累计或阈值」，只有墙钟预算 workflow.run_wall_clock_budget_sec。
+# 本块给 LLM 用量计价、累计、并设运行级上限。
+#
+# 落盘位置（**刻意不落跑次包**）：
+#   · logs/token_usage.jsonl        逐次调用一行（追加）
+#   · logs/token_usage_summary.json 本次运行的汇总（覆盖写）
+#   ⚠️ 绝不往 deliverables/07_runs/{run_id}/ 写——那个目录"存在且非空"是 P0-1b
+#      跑次包背书守卫的判据，凭空多一个账文件会把守卫打穿。
+#   ⚠️ 台账 deliverables/07_runs/ledger.sqlite 的列合同由 05 §B4.2 锁定（无 cost 列），
+#      成本账也不用去改它的列。
+#
+# 语义：
+#   · enabled=false → 完全不装载计量，不写文件、不拦调用（等价接入前）
+#   · mode=off      → 同上（只保留配置位）
+#   · mode=audit    → 只记录、只告警，**永不拦**（默认）
+#   · mode=enforce  → 除记录外，用量超硬上限时在 LLM 调用边界拒绝新调用
+#                     （抛 cost_meter.CostBudgetExceeded，由调用方既有异常处理兜住）
+#   · max_* 都不设   → 预算不生效，should_stop() 恒 False（等价接入前）
+#
+# ⚠️ prices 是**参考价覆盖位**，不是必须填。内置 DEFAULT_PRICE_TABLE 为各模型公开
+#    列表价的近似值（USD / 每百万 token），**上线前请按实际账单核对**；查不到价的模型
+#    一律只计 token、不计金额，并在汇总里记 n_unpriced（金额旁边永远写着"有几个没算"）。
+cost:
+  enabled: true
+  mode: audit               # off | audit | enforce
+  max_total_tokens: 0       # 0/留空 ⇒ 不限（与 max_cost_usd 同时留空即预算不生效）
+  max_cost_usd: 0           # 0/留空 ⇒ 不限
+  warn_ratio: 0.8           # 用量达上限的 80% 即报 warn
+  persist: true             # 是否落盘 logs/token_usage*.json*
+  usage_log_path: ""        # 留空 ⇒ <repo>/logs/token_usage.jsonl
+  summary_path: ""          # 留空 ⇒ <repo>/logs/token_usage_summary.json
+  hook_openai_sdk: false    # 从 openai SDK 层兜底插桩（覆盖 Hermes 路径）；本机无 hermes，未核验
+  # 价目覆盖示例（键为模型名，可前缀匹配；留空则用内置参考价）：
+  # prices:
+  #   deepseek-v4-pro: { prompt_per_million: 0.28, completion_per_million: 0.42 }
+  #   qwen3.7-max:     { prompt_per_million: 1.60, completion_per_million: 6.40 }
+  prices: {}
+
+
+# =============================================================================
+# P2-6 工部 · 运行指标采集与上报
+# =============================================================================
+# 差距原文：本仓此前「无监控指标上报、无部署脚本、无 CI/CD」；日志/健康检查/
+# 预处理/归档已具备（run_logger / preflight_check / run_file_manager / task_workspace）。
+# 本块补「监控指标」这一半（部署脚本 scripts/deploy.py、CI 流水线 scripts/ci.py 同属 P2-6）。
+#
+# 形态与既有的两种计量**同型**（模块级单例 + 运行边界被并列咨询，互不替换）：
+#   simulation/time_budget.py 墙钟预算 ｜ cost_meter.py token/金额 ｜ metrics.py 运行指标
+#
+# 落盘位置（**刻意不落跑次包**）：
+#   · logs/metrics/metrics.jsonl       每次上报追加一行（崩了也不丢）
+#   · logs/metrics/metrics_summary.json 本次运行汇总（原子覆盖）
+#   · logs/metrics/metrics.prom        Prometheus 文本导出（原子覆盖）
+#   ⚠️ 绝不往 deliverables/07_runs/{run_id}/ 写——那个目录"存在且非空"是 P0-1b
+#      跑次包背书守卫的判据；init_metrics() 对落在该目录下的路径直接 ValueError。
+#
+# 语义：
+#   · enabled=false   → 完全不装载，全 API no-op（等价接入前）
+#   · sink=none       → 只在内存里采集，不上报（供进程内 snapshot() 消费）
+#   · sink=file       → 落 logs/metrics/*（默认）
+#   · sink=http       → POST 快照到 http_url（urllib，零重依赖；失败吞掉并计数）
+#   · 零指标          → flush() 不创建任何文件（惰性，同 cost_meter/confirm_gate）
+#   · 上报失败        → 只累加 report.n_report_failed + 留 last_error，**绝不打断主流程**
+metrics:
+  enabled: true
+  sink: file                # none | file | http
+  persist: true             # sink=http 时是否同时本地留档
+  jsonl_path: ""            # 空 ⇒ <repo>/logs/metrics/metrics.jsonl
+  summary_path: ""          # 空 ⇒ <repo>/logs/metrics/metrics_summary.json
+  prometheus_path: ""       # 空 ⇒ <repo>/logs/metrics/metrics.prom
+  write_jsonl: true
+  write_prometheus: true
+  http_url: ""              # sink=http 时必填，例如 http://127.0.0.1:9091/metrics
+  http_timeout_sec: 3.0
+  http_headers: {}
+  max_series: 10000         # 基数护栏：标签爆炸时丢弃新序列并计数 dropped
+
 
 # ── 复制以下任一块并替换上方 ablation: + workflow.max_iterations 即可切换 ─────
 #
@@ -241,7 +444,7 @@ llm:
   #   OpenAI     -> 在 https://platform.openai.com/api-keys 获取，格式 sk-...
   #   Anthropic  -> 在 https://console.anthropic.com 获取
   #   本地服务   -> 填任意非空字符串，如 "local"
-  api_key: sk-3032a69eef4a45f994b6c5b5955e3130
+  api_key: sk-4f599dc25c5b45e5a11baf83a9d60ff6
 
   # fallbacks: 主模型余额/配额不足（HTTP 402 等）时按序自动切换
   # 由 multi_agent.llm_failover 在进程内切换；会同步更新 llm.* 与 OPENAI_* 环境变量
@@ -575,8 +778,11 @@ simulation:
   # ▶ 方式一：自动配置（当前激活）
   #   适用于 Octave 或 MATLAB 已加入系统 PATH 的情况。
   # ===========================================================================
-  engine: matlab           # subprocess 比 matlab_engine 更稳（尤其 Python 3.13+）
-  matlab_path: "E:/software/MATLAB/R2025a/bin/matlab.exe"
+  # auto 优先 in-process 常驻会话（matlab_engine，省 5-15s 冷启动）；未装 Engine 包或
+  # Python>=3.13 时自动回落到 subprocess（matlab -batch），无需人工切换。
+  # 想强制走稳的子进程：把 auto 改回 matlab。engine_resolver 会自动优选，见其 resolve_engine_config()。
+  engine: auto             # 可选值: auto | matlab_engine | matlab | octave | python
+  matlab_path: "D:/MATLAB/R2025a/bin/matlab.exe"
   octave_path: octave      # 裸名称 → 自动通过 PATH 查找
   mc_data_path: ""          # 单文件外部 MC（legacy）；论文协议优先用下方 mc_root/mc_seeds
   mc_root: ./data/mc        # 外部 MC 根目录（seed_{id}_{dev|test}.mat）
@@ -754,6 +960,6 @@ web:
   #        前提：必须先把 chromadb 降到 0.4.x（预 Rust 内核，用 hnswlib C++，
   #        无此崩溃）。降级命令：pip install chromadb==0.4.24
   #        降级并 `python scripts/test_chroma.py` 通过后再翻为 true 重启即可。
-  vector_search: false
+  vector_search: true
   # 端点：/api/stats, /api/docs, /api/search, /api/doc,
   #       /api/reindex, /api/feedback, /api/next_action, /api/experience

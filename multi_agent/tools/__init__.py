@@ -19,6 +19,13 @@ from .memory_tools import (
     AgentMemoryForgetTool,
 )
 from .delegate_tool import DelegateSubAgentTool
+from .stage2_tools import (
+    RequirementToIRTool,
+    CadGeometryTool,
+    AeroAnalysisTool,
+    SimulateModelicaTool,
+    RenderSSimTool,
+)
 
 __all__ = [
     # RAG Tools
@@ -43,4 +50,10 @@ __all__ = [
     "AgentMemoryRecallTool",
     "AgentMemoryListTool",
     "AgentMemoryForgetTool",
+    # 阶段 2：需求 → 工具链 → SSim
+    "RequirementToIRTool",
+    "CadGeometryTool",
+    "AeroAnalysisTool",
+    "SimulateModelicaTool",
+    "RenderSSimTool",
 ]

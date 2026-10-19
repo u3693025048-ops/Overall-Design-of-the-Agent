@@ -305,6 +305,14 @@ async def chat_completion_create_with_failover(
     if max_retries_per_endpoint is None:
         max_retries_per_endpoint = llm_max_retries(5)
 
+    # P2-1 户部：预算硬闸。**仅在 mode=enforce 且已超硬上限时**才拒绝新调用；
+    # 默认 mode=audit ⇒ gate_call() 恒返回 None ⇒ 与接入前逐字等价。
+    from multi_agent import cost_meter as _cost
+
+    _denied = _cost.gate_call(label="llm_failover")
+    if _denied:
+        raise _cost.CostBudgetExceeded(_denied)
+
     eps = endpoints_from_config()
     start = get_active_index()
     last_exc: Optional[BaseException] = None
@@ -342,7 +350,12 @@ async def chat_completion_create_with_failover(
             )
         for attempt in range(1, max_retries_per_endpoint + 1):
             try:
-                return await client.chat.completions.create(**create_kwargs)
+                _resp = await client.chat.completions.create(**create_kwargs)
+                # P2-1 户部：记一次真实用量。failover 会换端点，故同时记真实模型与端点标签。
+                _cost.record(
+                    _resp, model=ep.model, label="llm_failover", endpoint=ep.label
+                )
+                return _resp
             except BaseException as exc:
                 last_exc = exc
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):

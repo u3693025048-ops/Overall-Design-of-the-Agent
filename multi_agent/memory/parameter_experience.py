@@ -923,8 +923,20 @@ class ParameterExperience:
                 entry_dict["memory_type"] = MemoryType(entry_dict["memory_type"])
                 return MemoryEntry(**entry_dict)
                 
-            # Clear existing memory before loading
-            self.clear()
+            # Clear existing memory before loading.
+            #
+            # NOTE: clear in place, do NOT call self.clear() — clear() ends
+            # with an unconditional self.save(), which would persist the
+            # just-emptied dictionaries to ``persist_path`` and destroy the
+            # file.  load() does not re-save afterwards, so a read-only
+            # caller (``__init__`` -> ``load()`` -> ``retrieve_best()``)
+            # would leave the production memory file truncated to an empty
+            # skeleton.  The in-memory state is identical either way; only
+            # the destructive on-disk side effect is removed.
+            self._short_term_memory.clear()
+            self._long_term_memory.clear()
+            self._episodic_memory.clear()
+            self._access_counts.clear()
             
             # Load short-term
             for item in data.get("short_term", []):

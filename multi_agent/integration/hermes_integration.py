@@ -168,11 +168,76 @@ try:
         async def _handler(args, **_kw):
             try:
                 kw = dict(args) if isinstance(args, dict) else {}
+
+                # ── 工具调用边界权限闸门（P1-2）────────────────────────────
+                # `run_with_tools(tools=subset)` 只把子集 Schema 塞进
+                # `agent.tools`，约束的是 LLM **看见** 什么；而
+                # `registry.dispatch` 用的是 AIAgent 构造时快照的
+                # `valid_tool_names`（**全量**）。此处才是真正的执行边界：
+                # 越权调用（幻觉 / 提示注入）在此被拦下，绝不落到
+                # `tool.execute()`。策略由调用方经
+                # `security.tool_guard.policy_scope(...)` 绑定；未绑定则透传。
+                try:
+                    from multi_agent.security.tool_guard import guard_call
+                    _g = guard_call(getattr(tool, "name", ""))
+                    if not _g.allowed:
+                        return _json.dumps({
+                            "status":  "denied",
+                            "tool":    getattr(tool, "name", ""),
+                            "code":    _g.code,
+                            "role":    _g.role,
+                            "message": f"工具调用被权限闸门拒绝：{_g.reason}",
+                        }, ensure_ascii=False)
+                except Exception as _ge:  # pragma: no cover — 门禁接线异常不得阻断工具
+                    logger.error("[ToolGuard] wiring error, call passed through: %s", _ge)
+
+                # ── 高风险 / 不可逆操作确认闸门（P1-3）──────────────────────
+                # 许可面（上一段）通过之后，还要过**确认面**：写文件 / 跑仿真 /
+                # 删记忆等动作在获得人工确认前不得执行。未获确认时返回
+                # `pending_confirmation`（含确定性确认号），人工经 web 端批准后
+                # 以同参数重试即放行（一次性消耗）。策略由调用方经
+                # `security.confirm_gate.policy_scope(...)` 绑定；未绑定则透传。
+                try:
+                    from multi_agent.security.confirm_gate import guard_confirm
+                    _c = guard_confirm(getattr(tool, "name", ""), kw)
+                    if not _c.allowed:
+                        _is_pending = _c.code == "pending_confirmation"
+                        return _json.dumps({
+                            "status":          "pending_confirmation" if _is_pending else "denied",
+                            "tool":            getattr(tool, "name", ""),
+                            "code":            _c.code,
+                            "risk":            _c.risk,
+                            "role":            _c.role,
+                            "confirmation_id": _c.confirmation_id,
+                            "message":         (
+                                f"高风险操作需人工确认（确认号 {_c.confirmation_id}），"
+                                f"本次未执行：{_c.reason}"
+                                if _is_pending else
+                                f"高风险操作被确认闸门拒绝：{_c.reason}"
+                            ),
+                        }, ensure_ascii=False)
+                except Exception as _ce:  # pragma: no cover — 门禁接线异常不得阻断工具
+                    logger.error("[ConfirmGate] wiring error, call passed through: %s", _ce)
+
                 exec_fn = tool.execute
                 if inspect.iscoroutinefunction(exec_fn):
                     result = await exec_fn(**kw)
                 else:
                     result = exec_fn(**kw)
+                # ── P2-5 兵部：工具返回类型统一（Dict / JSON 字符串混用 → 强制 JSON）──
+                # 差距原文：「返回类型 Dict 与 JSON 字符串混用，未强制 JSON」。
+                # `registry.dispatch` 的契约是"JSON 字符串"，但旧实现只把 `str`
+                # **原样返回** —— 于是工具的**裸文本**返回（如 call_specialist 透传的
+                # 子智能体自由输出）不经任何 JSON 包装直接漏给 LLM，契约并未被强制。
+                # 现统一走 `tool_result.to_wire()`：
+                #   · 默认 audit —— 与旧行为**逐字等价**（str 原样 / 其余 dumps）；
+                #   · `ablation.tool_result_strict=true` —— 偏离声明形态即结构化拒绝。
+                # 该层是旁路：任何异常都不得影响工具主流程（吞掉并退回旧行为）。
+                try:
+                    from multi_agent.tools import tool_result as _tr
+                    return _tr.to_wire(result, getattr(tool, "name", ""))
+                except Exception as _tre:  # pragma: no cover — 归一不可用即退回旧行为
+                    logger.debug("[ToolResult] normalize unavailable, legacy path: %s", _tre)
                 if isinstance(result, str):
                     return result
                 return _json.dumps(result, ensure_ascii=False, default=str)
@@ -534,6 +599,11 @@ try:
                 AgentMemoryListTool,
                 AgentMemoryForgetTool,
                 DelegateSubAgentTool,
+                RequirementToIRTool,
+                CadGeometryTool,
+                AeroAnalysisTool,
+                SimulateModelicaTool,
+                RenderSSimTool,
             )
             from ..tools.syntax_check_tool import SyntaxCheckMATLABTool
             from ..tools.judge_requirements_tool import JudgeRequirementsTool
@@ -554,6 +624,13 @@ try:
                 AgentMemoryRecallTool(),
                 AgentMemoryListTool(),
                 AgentMemoryForgetTool(),
+                # 阶段 2：需求 → 工具链 → SSim（由「需求执行」调度器在
+                # 已批准的计划下逐任务调用；受 tool_guard + confirm_gate 管住）
+                RequirementToIRTool(),
+                CadGeometryTool(),
+                AeroAnalysisTool(),
+                SimulateModelicaTool(),
+                RenderSSimTool(),
                 # matlab_rl_optimize intentionally excluded:
                 # RL is exclusively Layer 3 (OptimizationWorkflow), not Hermes.
             ]
@@ -610,10 +687,11 @@ try:
 
                 # ── Ablation: remove tools for disabled components ────────
                 # Tool names excluded per flag:
-                #   rl_optimization / hermes_rl_tool    → "matlab_rl_optimize"
                 #   parameter_experience_reuse           → "parameter_experience_*"
                 #   guidance_compat_verification         → "verify_guidance_compat"
                 #   syntax_check                         → "syntax_check_matlab"
+                #   （P2-7：`hermes_rl_tool` 已删除 —— 它是死开关，全仓无读取点；
+                #     matlab_rl_optimize 本就不在 Hermes 工具集里。）
                 _pe_tool_names = {
                     "parameter_experience_search",
                     "parameter_experience_best",
@@ -651,6 +729,57 @@ try:
                 self._tools = tools
                 self._user_prompt = user_prompt
                 self._hermes_memory = hermes_agent_memory
+
+                # ── Tool guard (P1-2): drive the execution-boundary gate ──
+                # `ablation.tool_guard=False` disables the gate entirely
+                # (behaviour identical to before P1-2).  Also surface any
+                # registered tool missing from the catalogue at start-up:
+                # under a strict policy such a tool would be denied, so it
+                # must be caught during boot rather than at first call.
+                try:
+                    from multi_agent.security import tool_guard as _tg
+                    _tg.set_enabled(
+                        bool(getattr(ablation, "tool_guard", True))
+                        if ablation is not None else True
+                    )
+                    _uncatalogued = sorted(
+                        n for n in (getattr(t, "name", "") for t in tools)
+                        if n and n not in _tg.TOOL_CATALOG
+                    )
+                    if _uncatalogued:
+                        logger.warning(
+                            "[ToolGuard] tools registered but absent from TOOL_CATALOG "
+                            "(strict policies will deny them): %s", _uncatalogued,
+                        )
+                except Exception as _tge:  # pragma: no cover
+                    logger.warning("[ToolGuard] init wiring failed: %s", _tge)
+
+                # ── 确认闸门（P1-3）：装载模式 / 一次性授权 / 落盘路径 ──────
+                # `ablation.confirm_gate.enabled=False` 或 `mode=off` → 透传。
+                # `mode=enforce`（默认）下，未被 standing 覆盖的高风险调用
+                # （尤其**不可逆**的 agent_memory_forget）一律先返回
+                # pending_confirmation，不执行。
+                try:
+                    from multi_agent.security import confirm_gate as _cg
+                    _cg_enabled = (
+                        bool(getattr(ablation, "confirm_gate", True))
+                        if ablation is not None else True
+                    )
+                    if not _cg_enabled:
+                        _cg.set_mode(_cg.MODE_OFF)
+                    else:
+                        _cg.set_mode(str(getattr(ablation, "confirm_mode", "") or _cg.MODE_ENFORCE))
+                        _cg.set_deny_critical(bool(getattr(ablation, "confirm_deny_critical", False)))
+                        _standing = getattr(ablation, "confirm_standing", None)
+                        if _standing is None:
+                            _standing = list(_cg.DEFAULT_STANDING_TOOLS)
+                        _cg.grant_standing(_standing, by="ablation.confirm_gate.standing")
+                    try:
+                        _cg.set_store_path(_cg.default_store_path())
+                    except Exception:  # pragma: no cover — 落盘不可用不影响内存闸门
+                        pass
+                except Exception as _cge:  # pragma: no cover
+                    logger.warning("[ConfirmGate] init wiring failed: %s", _cge)
 
                 for tool in tools:
                     # RAG knowledge base (covers GenerateSysMLTool, GenerateMATLABTool, RAGRetrievalTool, etc.)
@@ -720,8 +849,25 @@ try:
                             # config as the parent but have unique toolsets.
                             try:
                                 from multi_agent.integration.sub_agent import (
-                                    build_specialized_agents,
+                                    build_specialized_agents, set_strict_whitelist,
                                 )
+                                from multi_agent.tools.delegate_tool import (
+                                    set_allow_specialist_escalation,
+                                )
+                                # ── P1-4：白名单严格模式（失败即拒绝）─────────
+                                # 同一个开关同时驱动两个模块：sub_agent 的"零匹配
+                                # 拒绝"与 delegate 的"具名专家失败不升级全量"。
+                                _strict = (
+                                    bool(getattr(ablation, "sub_agent_strict", True))
+                                    if ablation is not None else True
+                                )
+                                set_strict_whitelist(_strict)
+                                set_allow_specialist_escalation(not _strict)
+                                if not _strict:
+                                    logger.warning(
+                                        "[SubAgentFactory] sub_agent_strict=false："
+                                        "已恢复「无匹配回退全量工具」（仅供消融对照）"
+                                    )
                                 # Collect all non-delegate tools (already dep-injected above)
                                 _spec_agents = build_specialized_agents(
                                     sub_hermes=sub_hermes,

@@ -390,6 +390,9 @@ class SyntaxCheckMATLABTool:
                 temperature=0.0,
                 max_tokens=8192,
             )
+            # P2-1 户部：记一次真实用量（未装载计量时 record() 是纯 no-op）
+            from multi_agent import cost_meter as _cost
+            _cost.record(resp, model=cfg.model, label="syntax_check.llm_fix")
             raw = resp.choices[0].message.content or ""
 
             # Strip markdown fences if present

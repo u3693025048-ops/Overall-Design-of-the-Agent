@@ -5,6 +5,7 @@ RAG Knowledge Base
 """
 
 import asyncio
+import json
 import logging
 import os
 from pathlib import Path
@@ -38,6 +39,49 @@ class RAGConfig:
 # DashScope text-embedding-v3 limit: 8192 tokens ≈ 24 000 chars for code.
 # We use a conservative 6000 to stay safely under and handle tokeniser variance.
 _MAX_EMBED_CHARS = 6000
+
+
+def _sanitize_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """把 metadata 值域压成 chromadb 接受的标量，作为**入库边界的最后一道防线**。
+
+    背景：chromadb 0.4.x 的 validate_metadata 只放行 str/int/float/bool，任何
+    list / dict / None 会让**整批** upsert 失败（`Expected metadata value to be
+    a str, int, float or bool, got [...] which is a <class 'list'>`），退化到逐篇
+    重试后这些文档被静默丢弃——正是 kb:experience:E001/E002 丢向量的原因。
+
+    只在这里（写入 Chroma 前）做转换，不动调用方的原始 dict：业务侧
+    （如 ledger.gate_check / 人审闸门）仍拿到结构化的 list / dict。
+
+    list/tuple/set -> 逗号连接的字符串
+    dict           -> JSON 字符串（保持可读、可全文匹配）
+    None           -> 丢弃该键（0.4.x 不接受 None）
+    numpy 标量     -> 原生 Python 标量（0.4.x 不认识 np.float64 等）
+    """
+    out: Dict[str, Any] = {}
+    for key, val in (meta or {}).items():
+        key = str(key)
+        # numpy / pandas 标量 -> 原生类型（np.float64 不是 Python float 的子类问题）
+        item = getattr(val, "item", None)
+        if callable(item) and not isinstance(val, (str, bytes)):
+            try:
+                val = val.item()
+            except Exception:
+                pass
+        if val is None:
+            continue
+        # bool 必须排在 int 之前：isinstance(True, int) 为 True
+        if isinstance(val, bool) or isinstance(val, (str, int, float)):
+            out[key] = val
+        elif isinstance(val, (list, tuple, set, frozenset)):
+            out[key] = ",".join(str(x) for x in val)
+        elif isinstance(val, dict):
+            try:
+                out[key] = json.dumps(val, ensure_ascii=False)
+            except Exception:
+                out[key] = str(val)
+        else:
+            out[key] = str(val)
+    return out
 
 
 class OpenAICompatibleEmbeddingFunction:
@@ -401,7 +445,11 @@ class RAGKnowledgeBase:
                 # index_directory() (e.g. direct index_documents() calls).
                 if len(content) > _MAX_EMBED_CHARS:
                     content = content[:_MAX_EMBED_CHARS]
-                doc_metadata = {**(metadata or {}), **doc_data.get("metadata", {})}
+                # 边界标量化：任何非标量字段在此拍平，避免整批 upsert 被拒后
+                # 该文档被静默丢弃（只影响 Chroma，不改动调用方的原始 meta）。
+                doc_metadata = _sanitize_metadata(
+                    {**(metadata or {}), **doc_data.get("metadata", {})}
+                )
                 doc_id = doc_data.get("id") or f"doc_{i}_{hash(content) % 100000}"
                 ids.append(doc_id)
                 contents.append(content)
@@ -840,7 +888,15 @@ class RAGKnowledgeBase:
         content: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """更新文档"""
+        """更新文档
+
+        注意（2026-09-30 修复）：metadata 必须过 `_sanitize_metadata()` 才能交给
+        chromadb。原实现把调用方的 dict 原样塞进 `collection.update()`，于是
+        含 list 的键（如人审闸门要用的 `source_run_ids`）会让 update 抛
+        `Expected metadata value to be a str, int, float or bool, got [...]`——
+        人审/签发只改了 BM25 语料、向量库没改，两个索引对同一张卡的
+        `status` 各说各话。入库路径（add_documents）早就过了消毒，update 漏了。
+        """
         if self._collection is None:
             return False
 
@@ -849,7 +905,7 @@ class RAGKnowledgeBase:
             if content is not None:
                 update_data["documents"] = [content]
             if metadata is not None:
-                update_data["metadatas"] = [metadata]
+                update_data["metadatas"] = [_sanitize_metadata(metadata)]
 
             self._collection.update(**update_data)
             return True
