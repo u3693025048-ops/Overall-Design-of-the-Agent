@@ -591,6 +591,72 @@ async def api_update_profile(body: ProfileIn, request: Request):
     return {"status": "ok", "profile": prof.to_dict(), "identity": ident.to_dict()}
 
 
+# ── 配置可视化（只读展示 + 白名单字段写回）──────────────────────────────────
+# 三条纪律见 `web/config_api.py` 模块头：
+#   1. 只有白名单字段可写；ablation / identity / metrics **只读**（改它会打穿机检或安全层）；
+#   2. 写回是**定点行替换**，不 dump YAML ⇒ config.yaml 里的运维注释原样保留；
+#   3. 写后复校：目标值必须真的变了，且**除该路径外全文无差异**（防改到同名 key）。
+#
+# 权限：配置能改外部工具路径、LLM 端点与预算上限 ⇒ **仅 admin**。
+# viewer 一律 403（不是"前端隐藏按钮"，是服务端拒绝）。
+class ConfigIn(BaseModel):
+    """配置写回。``updates`` 形如 ``{"simulation.matlab_path": "…"}``。"""
+
+    updates: Dict[str, Any] = {}
+    confirm: bool = False          # 预留：未来高风险项（如关掉向量检索）要求两次确认
+
+
+def _config_admin(request: Request) -> Dict[str, Any]:
+    user = _acting_user(request)
+    if str(user.get("role") or "") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail=(f"配置写回仅限 admin：当前登录 {user.get('username')!r}"
+                    f"（role={user.get('role')!r}）。请联系管理员。"),
+        )
+    return user
+
+
+@APP.get("/api/config")
+async def api_config_get(request: Request):
+    """当前配置：可编辑字段（分组，脱敏）+ 只读块 + 未纳管块。仅 admin。"""
+    _config_admin(request)
+    from . import config_api
+    return await asyncio.to_thread(config_api.read_config)
+
+
+@APP.post("/api/config")
+async def api_config_set(body: ConfigIn, request: Request):
+    """写回配置：校验 → 备份 → 定点替换 → 复校 → 热重载。
+
+    拒绝一律 400 + ``{code, path, error}``（``not_whitelisted`` / ``bad_type`` /
+    ``bad_enum`` / ``out_of_range`` / ``path_not_found`` / ``verify_failed`` /
+    ``collateral_change``），**绝不部分写入** —— 复校不过就一行都不落盘。
+    """
+    user = _config_admin(request)
+    from . import config_api
+    try:
+        res = await asyncio.to_thread(config_api.apply_updates, body.updates)
+    except config_api.ConfigRefused as exc:
+        raise HTTPException(status_code=400, detail=exc.to_dict())
+    res["acting_user"] = user.get("username")
+    res["acting_role"] = user.get("role")
+    return res
+
+
+@APP.get("/api/config/meta")
+async def api_config_meta(request: Request):
+    """配置文件的落点与校验和（审计用：确认某次改动改的是哪个文件）。"""
+    _config_admin(request)
+    from . import config_api
+    return {
+        "file": str(config_api.CONFIG_PATH),
+        "sha256": config_api.sha256_of(),
+        "n_fields": len(config_api.FIELDS),
+        "groups": list(config_api.GROUP_ORDER),
+    }
+
+
 @APP.get("/api/eval")
 async def api_eval(top_k: int = 10, sample: int = 0, lib: str = ""):
     """Stage D：检索质量自评（MRR/Recall/HitRate + trace 抽样）。"""
@@ -928,4 +994,4 @@ register_auth(APP)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(APP, host="0.0.0.0", port=8787)
+    uvicorn.run(APP, host="0.0.0.0", port=6006)

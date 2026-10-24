@@ -111,7 +111,7 @@ def main() -> None:
 
     web = cfg.get("web", {}) or {}
     host = web.get("host", "0.0.0.0")
-    port = int(web.get("port", 8787))
+    port = int(web.get("port", 6006))
     enabled = web.get("enabled", True)
     if not enabled:
         print("[web] web.enabled=false，未启动。", flush=True)

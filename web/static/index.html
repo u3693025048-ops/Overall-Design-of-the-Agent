@@ -74,6 +74,56 @@
   .metric{display:inline-block;margin:6px 18px 6px 0;text-align:center}
   .metric b{display:block;font-size:22px;color:var(--acc)}
   .metric span{font-size:11px;color:var(--dim)}
+
+  /* ── 配置页 ── */
+  .conf-group{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+  .conf-group > h3{margin:0;padding:10px 14px;font-size:13px;background:var(--panel2);border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+  .conf-field{display:grid;grid-template-columns:230px 1fr;gap:6px 12px;padding:9px 14px;border-bottom:1px solid var(--line);align-items:start}
+  .conf-field:last-child{border-bottom:none}
+  .conf-field.dirty{background:rgba(239,159,39,.08);box-shadow:inset 3px 0 0 var(--acc)}
+  .conf-field .cl{font-size:12.5px;color:var(--txt);line-height:1.5;padding-top:6px}
+  .conf-field .cl code{color:var(--dim);font-size:10.5px;display:block;margin-top:2px;word-break:break-all;font-family:ui-monospace,Consolas,monospace}
+  .conf-field .cv input,.conf-field .cv select{width:100%;max-width:470px}
+  .conf-field .ch{color:var(--dim);font-size:11.5px;grid-column:2;line-height:1.55}
+  .conf-field .cb{display:flex;align-items:center;gap:8px;padding-top:6px}
+  .badge{font-size:10.5px;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--dim);margin-left:6px;white-space:nowrap}
+  .badge.hot{color:var(--acc2);border-color:var(--acc2)}
+  .badge.rs{color:var(--acc);border-color:var(--acc)}
+  .conf-bar{position:sticky;bottom:8px;z-index:5;background:var(--panel);border:1px solid var(--acc);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:center;margin:12px 0;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+  .conf-bar b{color:var(--acc)}
+  .ro-table{width:100%;font-size:11.5px;border-collapse:collapse}
+  .ro-table td{padding:3px 8px;border-bottom:1px solid var(--line);color:var(--mut)}
+  .ro-table td:first-child{color:var(--dim);width:46%;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:11px}
+  details.ro{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;padding:0 14px}
+  details.ro > summary{cursor:pointer;padding:10px 0;font-size:12.5px;color:var(--txt)}
+  details.ro .why{color:var(--dim);font-size:11.5px;margin:0 0 10px;line-height:1.6;border-left:2px solid var(--acc);padding-left:9px}
+
+  /* ── 执行流程图 ── */
+  .flow{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px}
+  .flow-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .flow-h b{font-size:13px}
+  .flow-h .score{margin-left:auto}
+  .flow-row{display:flex;align-items:stretch;flex-wrap:wrap;row-gap:10px}
+  .nd{position:relative;flex:1 1 0;min-width:108px;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--dim);border-radius:8px;padding:8px 10px;margin-right:20px}
+  .nd:last-child{margin-right:0}
+  .nd:not(:last-child)::after{content:"";position:absolute;right:-15px;top:50%;width:11px;height:1px;background:var(--line)}
+  .nd:not(:last-child)::before{content:"";position:absolute;right:-15px;top:50%;margin-top:-3px;border:3px solid transparent;border-left-color:var(--line)}
+  .nd .nh{font-size:10.5px;color:var(--dim);letter-spacing:.4px}
+  .nd .nt{font-size:12.5px;color:var(--txt);font-weight:600;margin:1px 0 2px;line-height:1.4}
+  .nd .nx{font-size:10.5px;color:#9d95e8;font-family:ui-monospace,Consolas,monospace;word-break:break-all;line-height:1.4}
+  .nd .nf{font-size:10.5px;color:var(--dim);margin-top:3px;line-height:1.4}
+  .nd.done{border-left-color:var(--green)} .nd.done .nt{color:#a8e05f}
+  .nd.run{border-left-color:var(--blue)} .nd.run .nt{color:#b3aef0}
+  .nd.run{animation:pulse 1.5s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(127,119,221,.35)}50%{box-shadow:0 0 0 5px rgba(127,119,221,0)}}
+  .nd.fail{border-left-color:var(--red)} .nd.fail .nt{color:#ff9d9c}
+  .nd.wait{border-left-color:var(--acc)} .nd.wait .nt{color:#ffcf8a}
+  .nd.deny{border-left-color:#c47a1e} .nd.deny .nt{color:#ffcf8a}
+  .nd.click{cursor:pointer}
+  .nd.click:hover{border-color:var(--acc)}
+  .flow-legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:11px;flex-wrap:wrap}
+  .flow-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  .flow-sep{font-size:11px;color:var(--dim);margin:12px 0 8px;border-top:1px dashed var(--line);padding-top:9px}
 </style>
 </head>
 <body>
@@ -117,6 +167,7 @@
   <button data-t="eval" id="navEval">评估</button>
   <button data-t="val" id="navVal">机检</button>
   <button data-t="req" id="navReq">需求执行</button>
+  <button data-t="conf" id="navConf" style="display:none">配置</button>
 </nav>
 <main>
   <!-- 检索 -->
@@ -267,6 +318,7 @@
     </div>
 
     <div id="rq_msg" class="hint"></div>
+    <div id="rq_flow"></div>
     <div id="rq_kb"></div>
     <div id="rq_retrieval"></div>
     <div id="rq_plan"></div>
@@ -278,6 +330,35 @@
 
     <div class="hint" style="margin-top:16px">历史任务（新→旧）：</div>
     <div id="rq_history"></div>
+  </section>
+
+  <!-- 配置（仅 admin）：白名单字段可改，写回 config.yaml 并热重载 -->
+  <section class="tab" id="conf">
+    <div class="hint">
+      <b>配置可视化</b>：把 <code>config.yaml</code> 里常用的项搬到页面上。保存时<b>只改目标那一行</b>
+      （注释、示例块、文件结构全部保留），写前自动备份到 <code>logs/config_backups/</code>，
+      写后校验「值真的变了 + 全文只有这一处变化」，再热重载配置。
+      <br />
+      <span class="badge hot">立即</span> 下一次读取配置即生效；
+      <span class="badge rs">需重启</span> 由服务启动期读入（如监听端口、向量检索开关），下次启动才生效。
+      <br />
+      <b>只读块（消融开关 / 身份权限 / 指标上报）故意不给写入口</b> —— 它们分别受
+      <code>check_p2_7</code>、身份闸门与 <code>check_p2_6</code> 约束，改了会打穿机检或安全层，
+      必须走代码评审。页面照常能看到它们的当前值。
+    </div>
+    <div id="confMsg" class="hint"></div>
+    <div id="confGroups"><span class="spin">加载中…</span></div>
+    <div class="conf-bar" id="confBar" style="display:none">
+      <span id="confCount"></span>
+      <span style="margin-left:auto"></span>
+      <button class="btn" id="confReset">放弃改动</button>
+      <button class="btn acc" id="confSave">保存并热重载</button>
+    </div>
+    <div id="confDirty"></div>
+    <div class="hint" style="margin-top:16px">只读块（可查看，不可改）：</div>
+    <div id="confReadonly"></div>
+    <div class="hint" style="margin-top:16px">未纳入可视化的科研参数（避免误改污染论文复现，请直接编辑文件）：</div>
+    <div id="confUnmanaged"></div>
   </section>
 </main>
 
@@ -325,9 +406,9 @@ async function api(url, opt) {
   if (!r.ok) {
     if (r.status === 401) showLogin();
     var d = j && j.detail;
-    // 上传解析失败时 detail 是结构化对象 {code,message,detail}（见 POST /api/doc/upload）
+    // 上传解析 / 配置写回失败时 detail 是结构化对象（{code,message|error,path}）
     var emsg = (d && typeof d === "object")
-      ? (d.message || JSON.stringify(d))
+      ? (d.message || d.error || JSON.stringify(d))
       : (d || (j && j.message) || ("HTTP " + r.status));
     var err = new Error(emsg);
     err.status = r.status;
@@ -343,6 +424,7 @@ function showLogin() {
   $("who").style.display = "none";
   $("logout").style.display = "none";
   $("navUm").style.display = "none";
+  $("navConf").style.display = "none";
   if (window.__sliderReset) window.__sliderReset();
   $("lerr").textContent = "";
 }
@@ -369,7 +451,10 @@ function onLoggedIn(username, role) {
   $("who").style.display = "inline-block";
   $("who").textContent = "👤 " + username + (role === "admin" ? " · 管理员" : "");
   $("logout").style.display = "inline-block";
-  if (role === "admin") $("navUm").style.display = "inline-block";
+  if (role === "admin") {
+    $("navUm").style.display = "inline-block";
+    $("navConf").style.display = "inline-block";   /* 配置写回仅 admin（服务端同样 403） */
+  }
   loadStat();
   updateRvWho();
 }
@@ -461,9 +546,10 @@ document.querySelectorAll("nav button").forEach(function (b) {
     if (t === "um") loadUsers();
     if (t === "eval") {};
     if (t === "req") {
-      rqHistory(); rqRefreshReflow();
+      rqHistory(); rqRefreshReflow(); rqRefreshFlow();
       setTimeout(function () { $("rq_text").focus(); }, 0);
     }
+    if (t === "conf") confLoad();
   };
 });
 
@@ -1411,6 +1497,7 @@ async function rqAnalyze() {
     });
     RQ.plan = p; RQ.taskId = p.task_id;
     rqRenderKb(p); rqRenderRetrieval(p); rqRenderPlan(p);
+    rqRefreshFlow();
     rqMsg("计划已生成：" + esc(p.task_id) + " —— 请审核后批准（未批准不会执行）。", "ok");
     await rqHistory();
     rqRefreshReflow();
@@ -1470,6 +1557,7 @@ function rqPoll() {
     try {
       var st = await api("/api/requirement/status?task_id=" + encodeURIComponent(RQ.taskId));
       rqRenderProgress(st);
+      rqRenderFlow(st);
       if (st.status !== "running") {
         clearInterval(RQ.timer); RQ.timer = null;
         await rqLoadPlan();
@@ -1529,6 +1617,7 @@ async function rqLoadPlan() {
     try {
       var st = await api("/api/requirement/status?task_id=" + encodeURIComponent(RQ.taskId));
       rqRenderProgress(st);
+      rqRenderFlow(st);
     } catch (e2) { /* 进度非关键，失败不打断计划渲染 */ }
   } catch (e) {
     rqMsg("读取计划失败：" + esc(e.message), "bad");
@@ -1596,6 +1685,341 @@ $("rq_env").onclick = async function () {
   }
   b.disabled = false;
 };
+
+/* ═══════════════════════════════════════════════════════════════════════
+   执行流程节点图（纯 DOM，不引第三方库）
+   数据源：GET /api/requirement/status —— **只读投影**，不参与任何判定。
+   两行：①需求→②检索→③计划→④批准→⑤执行→⑥结果
+         s1→(s2∥s3)→s4→s5（固定 5 步骨架，与 STEP_TEMPLATE 同序）
+   ═══════════════════════════════════════════════════════════════════════ */
+var RQ_STEP_CLS = {
+  planned: "plan", running: "run", executed: "done",
+  failed: "fail", denied: "deny", pending_confirmation: "wait"
+};
+
+function rqFlowNode(key, title, tool, cls, foot) {
+  return '<div class="nd ' + cls + '"' + (key ? ' data-step="' + esc(key) + '"' : "") + ">" +
+    '<div class="nh">' + esc(key || "") + "</div>" +
+    '<div class="nt">' + esc(title) + "</div>" +
+    (tool ? '<div class="nx">' + esc(tool) + "</div>" : "") +
+    (foot ? '<div class="nf">' + foot + "</div>" : "") +
+    "</div>";
+}
+
+/* foot 里允许少量 HTML（状态点），其余一律 esc */
+function rqDot(cls) {
+  return '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;' +
+         'margin-right:4px;background:' + cls + '"></span>';
+}
+
+function rqTraceOf(st, stepId) {
+  var t = (st.exec_trace || []).filter(function (x) { return x.step_id === stepId; });
+  return t.length ? t[t.length - 1] : null;
+}
+
+function rqRenderFlow(st) {
+  var box = $("rq_flow");
+  if (!box) return;
+  if (!st || !st.task_id) { box.innerHTML = ""; return; }
+
+  var pr = st.progress || {};
+  var rt = st.retrieval || {};
+  var hr = st.human_review || {};
+  var stt = String(st.status || "");
+
+  /* ── 第 1 行：主流程 ── */
+  var n1 = rqFlowNode("① 需求", (st.text || "").slice(0, 26) +
+      ((st.text || "").length > 26 ? "…" : ""),
+      "", "done", (st.created_by || "-") + " · " + String(st.created_at || "").slice(5, 16));
+
+  var segTot = 0, segTxt = [];
+  [["结构化", rt.structured], ["回流", rt.reflow], ["参数经验", rt.parameter_experience]]
+    .forEach(function (x) {
+      var n = (x[1] || {}).hit_count;
+      if (n === undefined) return;
+      segTot += n || 0;
+      segTxt.push(x[0] + " " + (n || 0));
+    });
+  var n2 = rqFlowNode("② 检索", "知识库优先", rqSrcText(rt.chosen || "—"),
+      "done", segTxt.join(" / ") + "　复用 " + (rt.n_reusable || 0) +
+      " · 待审 " + (rt.n_unvetted || 0));
+
+  var rv = st.review || {};
+  var n3 = rqFlowNode("③ 计划", "固定 5 步", "STEP_TEMPLATE",
+      "done", "预审 " + (rv.ok ? rqDot("#639922") + "通过" : rqDot("#e24b4a") + "不通过") +
+      (rv.risk ? " · risk=" + esc(rv.risk) : "") +
+      (rv.plan_permissions && rv.plan_permissions.length
+        ? " · 权限 " + esc(rv.plan_permissions.join(",")) : ""));
+
+  var dec = String(hr.decision || "");
+  var n4cls = dec === "approve" ? "done" : (dec === "reject" ? "fail" : "wait");
+  var n4 = rqFlowNode("④ 批准", "人工批准", "gate: plan_review",
+      n4cls, dec ? (dec === "approve" ? rqDot("#639922") + "已批准 " : rqDot("#e24b4a") + "已驳回 ") +
+      esc(hr.by || "") : rqDot("#ef9f27") + "待人工批准");
+
+  var n5cls = stt === "running" ? "run"
+    : (stt === "awaiting_confirmation" ? "wait"
+    : (stt === "succeeded" ? "done" : (stt === "failed" ? "fail" : "plan")));
+  var n5 = rqFlowNode("⑤ 执行", "逐任务调度", "tool_guard → confirm_gate → execute",
+      n5cls, (pr.done || 0) + "/" + (pr.total || 5) + " 步完成" +
+      ((pr.awaiting_confirmation || []).length ? " · 待确认 " + esc(pr.awaiting_confirmation.join(",")) : "") +
+      ((pr.failed_steps || []).length ? " · 失败 " + esc(pr.failed_steps.join(",")) : ""));
+
+  var n6cls = stt === "succeeded" ? "done" : (stt === "failed" ? "fail"
+    : (stt === "rejected" ? "fail" : "plan"));
+  var m = ((st.steps || []).filter(function (s) { return s.step_id === "s4"; })[0] || {}).result || {};
+  var mm = (m.run || {}).metrics || {};
+  var metricTxt = ["cep_r95", "PM", "GM"].filter(function (k) {
+    return mm[k] !== undefined && mm[k] !== null;
+  }).map(function (k) { return k + "=" + mm[k]; }).join(" ");
+  var n6 = rqFlowNode("⑥ 结果", stt, "",
+      n6cls, (st.elapsed_sec ? esc(st.elapsed_sec) + "s " : "") + (metricTxt || esc(st.error || "—")));
+
+  var row1 = '<div class="flow-row">' + n1 + n2 + n3 + n4 + n5 + n6 + "</div>";
+
+  /* ── 第 2 行：5 个步骤（真实工具名 + 闸门结论） ── */
+  var stepsHtml = (st.steps || []).map(function (s) {
+    var cls = RQ_STEP_CLS[s.status] || "plan";
+    var tr = rqTraceOf(st, s.step_id);
+    var foot = esc(s.status || "");
+    if (tr && tr.gate_stage) {
+      foot += " · " + (tr.gate_code ? rqDot("#e24b4a") + esc(tr.gate_stage) + ":" + esc(tr.gate_code)
+                                   : rqDot("#639922") + esc(tr.gate_stage));
+    }
+    if (s.gate && s.gate.confirmation_id) foot += " · 确认号 " + esc(String(s.gate.confirmation_id).slice(0, 12));
+    return rqFlowNode(s.step_id, s.name || "", s.tool || "", cls + " click", foot);
+  }).join("");
+
+  var legend = '<div class="flow-legend">' +
+    [["#2a3543", "未开始"], ["#7f77dd", "执行中"], ["#639922", "已完成"],
+     ["#ef9f27", "待人工确认"], ["#e24b4a", "失败"], ["#c47a1e", "闸门拒绝"]]
+      .map(function (x) { return "<span><i style=\"background:" + x[0] + "\"></i>" + x[1] + "</span>"; })
+      .join("") + '<span style="margin-left:auto">点步骤节点可看该步结果</span></div>';
+
+  box.innerHTML = '<div class="flow"><div class="flow-h"><b>执行流程</b>' +
+    '<span class="pill">' + esc(st.task_id) + "</span>" +
+    '<span class="score">' + esc(stt) + " · " + (pr.done || 0) + "/" + (pr.total || 5) + "</span></div>" +
+    row1 +
+    '<div class="flow-sep">固定 5 步骨架（每步都是<b>已登记工具</b>；s2∥s3 并发，s4 独占且需人工确认）</div>' +
+    '<div class="flow-row">' + stepsHtml + "</div>" +
+    legend + '<div id="rq_stepdetail"></div></div>';
+
+  Array.prototype.forEach.call(box.querySelectorAll(".nd.click[data-step]"), function (el) {
+    el.onclick = function () { rqShowStep(st, el.getAttribute("data-step")); };
+  });
+}
+
+function rqSrcText(s) {
+  return String(s || "");
+}
+
+function rqShowStep(st, stepId) {
+  var box = $("rq_stepdetail");
+  if (!box) return;
+  var s = (st.steps || []).filter(function (x) { return x.step_id === stepId; })[0];
+  if (!s) { box.innerHTML = ""; return; }
+  var r = s.result || {};
+  var keep = {};
+  ["ok", "error", "not_executed_reason", "enabled", "ir_path", "report_path",
+   "ssim_path", "trailer_ok", "plant_host", "compiled_once", "omc_build",
+   "paper_platform", "result_path", "elapsed_sec", "notes"].forEach(function (k) {
+    if (r[k] !== undefined) keep[k] = r[k];
+  });
+  var tr = rqTraceOf(st, stepId) || {};
+  var txt = JSON.stringify({
+    step_id: s.step_id, name: s.name, tool: s.tool, status: s.status,
+    started_at: s.started_at || "", gate: s.gate || null,
+    trace: {stage: tr.gate_stage || "", code: tr.gate_code || "", at: tr.at || ""},
+    result: keep
+  }, null, 2);
+  box.innerHTML = '<div class="body open" style="max-height:320px;margin-top:10px">' +
+    "<b>" + esc(stepId) + " · " + esc(s.name || "") + "</b>\n" +
+    "<code>" + esc(s.tool || "") + "</code>\n" + esc(txt) + "</div>";
+}
+
+async function rqRefreshFlow() {
+  if (!RQ.taskId) { var b = $("rq_flow"); if (b) b.innerHTML = ""; return; }
+  try {
+    var st = await api("/api/requirement/status?task_id=" + encodeURIComponent(RQ.taskId));
+    rqRenderFlow(st);
+  } catch (e) { /* 流程图非关键路径，失败不打断主流程 */ }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   配置页（仅 admin）：白名单字段 → 控件；保存只提交改动项
+   ═══════════════════════════════════════════════════════════════════════ */
+var CONF = { data: null, changes: {}, loaded: false };
+
+function confMsg(html, cls) {
+  var el = $("confMsg");
+  if (!el) return;
+  el.className = "hint" + (cls ? " " + cls : "");
+  el.innerHTML = html;
+}
+
+async function confLoad(force) {
+  if (CONF.loaded && !force) { confTally(); return; }
+  $("confGroups").innerHTML = '<span class="spin">加载中…</span>';
+  try {
+    var d = await api("/api/config");
+    CONF.data = d; CONF.loaded = true; CONF.changes = {};
+    confRender();
+    confMsg("共 " + d.n_editable + " 项可在此修改；配置文件 <code>" + esc(d.file) +
+            "</code>（sha " + esc(d.sha256) + "，改于 " + esc(d.mtime) + "）。");
+  } catch (e) {
+    $("confGroups").innerHTML = "";
+    confMsg('<span class="bad">加载失败：' + esc(e.message) +
+            (e.status === 403 ? "（配置页仅 admin 可用）" : "") + "</span>", "bad");
+  }
+}
+
+function confFieldRow(f) {
+  var fid = "cf_" + f.path.replace(/[^a-zA-Z0-9]/g, "_");
+  var common = ' data-path="' + esc(f.path) + '" data-kind="' + esc(f.kind) +
+               '" data-masked="' + (f.sensitive ? "1" : "0") + '"';
+  var ctrl = "";
+  if (f.kind === "bool") {
+    ctrl = '<label class="cb"><input type="checkbox" id="' + fid + '"' + common +
+      (f.value ? " checked" : "") + " /><span style=\"font-size:11.5px;color:var(--dim)\">" +
+      (f.value ? "已开启" : "已关闭") + "</span></label>";
+  } else if (f.kind === "enum") {
+    ctrl = '<select id="' + fid + '"' + common + ">" +
+      (f.enum || []).map(function (o) {
+        return '<option value="' + esc(o) + '"' +
+          (String(f.value) === o ? " selected" : "") + ">" + esc(o) + "</option>";
+      }).join("") + "</select>";
+  } else {
+    var type = (f.kind === "int" || f.kind === "float") ? "number" : "text";
+    var extra = "";
+    if (f.min !== null && f.min !== undefined) extra += ' min="' + f.min + '"';
+    if (f.max !== null && f.max !== undefined) extra += ' max="' + f.max + '"';
+    if (f.kind === "float") extra += ' step="any"';
+    ctrl = '<input type="' + type + '" id="' + fid + '"' + common + extra +
+      ' value="' + (f.sensitive ? "" : esc(f.value)) + '"' +
+      ' placeholder="' + esc(f.sensitive
+        ? ("当前 " + (f.display || "（空）") + "；留空表示不修改")
+        : "") + '" />';
+  }
+  var badge = f.sensitive
+    ? '<span class="badge">脱敏</span>'
+    : (f.restart_required ? '<span class="badge rs">需重启</span>'
+                          : '<span class="badge hot">立即</span>');
+  return '<div class="conf-field" data-for="' + esc(f.path) + '">' +
+    '<div class="cl">' + esc(f.label) + badge + "<code>" + esc(f.path) + "</code></div>" +
+    '<div class="cv">' + ctrl + "</div>" +
+    (f.help ? '<div class="ch">' + esc(f.help) + (f.unit ? "（单位 " + esc(f.unit) + "）" : "") + "</div>" : "") +
+    "</div>";
+}
+
+function confRender() {
+  var d = CONF.data;
+  if (!d) return;
+  $("confGroups").innerHTML = (d.groups || []).map(function (g) {
+    return '<div class="conf-group"><h3>' + esc(g.title) +
+      '<span class="badge">' + g.fields.length + " 项</span></h3>" +
+      g.fields.map(confFieldRow).join("") + "</div>";
+  }).join("");
+
+  Array.prototype.forEach.call($("confGroups").querySelectorAll("[data-path]"), function (el) {
+    el.addEventListener("change", confOnEdit);
+    el.addEventListener("input", confOnEdit);
+  });
+
+  $("confReadonly").innerHTML = (d.readonly || []).map(function (s) {
+    var rows = (s.keys || []).map(function (k) {
+      return "<tr><td>" + esc(k.path) + "</td><td>" + esc(k.display) + "</td></tr>";
+    }).join("");
+    return "<details class=\"ro\"><summary>" + esc(s.title) + "（" +
+      (s.keys || []).length + " 项）</summary><div class=\"why\">" + esc(s.reason) +
+      '</div><table class="ro-table">' + rows + "</table></details>";
+  }).join("");
+
+  $("confUnmanaged").innerHTML = (d.unmanaged || []).map(function (s) {
+    var rows = (s.keys || []).slice(0, 80).map(function (k) {
+      return "<tr><td>" + esc(k.path) + "</td><td>" + esc(k.display) + "</td></tr>";
+    }).join("");
+    return "<details class=\"ro\"><summary><code>" + esc(s.key) + "</code>（" +
+      (s.keys || []).length + " 项）</summary><table class=\"ro-table\">" + rows +
+      "</table></details>";
+  }).join("");
+
+  confTally();
+}
+
+function confOnEdit(ev) {
+  var el = ev.target;
+  var path = el.getAttribute("data-path");
+  if (!path) return;
+  var kind = el.getAttribute("data-kind");
+  var masked = el.getAttribute("data-masked") === "1";
+  var v;
+  if (kind === "bool") v = !!el.checked;
+  else if (masked) {
+    var s = String(el.value || "").trim();
+    if (!s) { delete CONF.changes[path]; confMark(path, false); confTally(); return; }
+    v = s;
+  } else v = el.value;
+
+  CONF.changes[path] = v;
+  confMark(path, true);
+  confTally();
+}
+
+function confMark(path, dirty) {
+  var row = $("confGroups").querySelector('[data-for="' + path.replace(/"/g, '\\"') + '"]');
+  if (row) row.classList.toggle("dirty", !!dirty);
+}
+
+function confTally() {
+  var n = Object.keys(CONF.changes).length;
+  var bar = $("confBar");
+  bar.style.display = n ? "flex" : "none";
+  $("confCount").innerHTML = n ? ("待保存 <b>" + n + "</b> 项改动") : "";
+  var rows = Object.keys(CONF.changes).map(function (p) {
+    return "<tr><td>" + esc(p) + "</td><td>" + esc(CONF.changes[p]) + "</td></tr>";
+  }).join("");
+  $("confDirty").innerHTML = rows
+    ? '<div class="hint">将写入的改动：</div><table class="ro-table">' + rows + "</table>" : "";
+}
+
+async function confSave() {
+  var ups = CONF.changes;
+  var n = Object.keys(ups).length;
+  if (!n) return;
+  var b = $("confSave"); b.disabled = true; b.textContent = "保存中…";
+  try {
+    var r = await api("/api/config", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates: ups }),
+    });
+    var rows = (r.changed || []).map(function (c) {
+      return "<tr><td>" + esc(c.path) + "</td><td>" + esc(c.old) + " → <b>" +
+        esc(c.new) + "</b></td></tr>";
+    }).join("");
+    var extra = "";
+    if (r.restart_required && r.restart_required.length) {
+      extra = '<div class="hint warn">以下项由启动期读取，<b>需重启服务</b>才生效：' +
+        esc(r.restart_required.join(", ")) + "</div>";
+    }
+    confMsg('<span class="ok">已保存 ' + (r.changed || []).length + " 项</span>　" +
+      esc(r.note || "") + "　备份：<code>" + esc(r.backup || "-") + "</code>" +
+      (rows ? '<table class="ro-table" style="margin-top:8px">' + rows + "</table>" : "") +
+      extra, "ok");
+    CONF.changes = {};
+    await confLoad(true);
+  } catch (e) {
+    var det = e.detail || {};
+    confMsg('<span class="bad">保存被拒：' + esc(e.message) + "</span>" +
+      (det.code ? '　<span class="badge">' + esc(det.code) + "</span>" : "") +
+      (det.path ? '　<code>' + esc(det.path) + "</code>" : "") +
+      '<div class="hint">校验不过时<b>一行都不会落盘</b>（写前复校：值必须真的变、且全文只有这一处变化）。</div>',
+      "bad");
+  }
+  b.disabled = false; b.textContent = "保存并热重载";
+}
+
+$("confSave").onclick = confSave;
+$("confReset").onclick = function () { CONF.changes = {}; confLoad(true); };
 
 /* ── 启动 ───────────────────────────────────────────────────────────── */
 boot();

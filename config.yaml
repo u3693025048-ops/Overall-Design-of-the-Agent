@@ -950,7 +950,7 @@ rl:
 web:
   enabled: true          # 是否启动 Web 管理端
   host: 0.0.0.0          # 监听地址（本机访问用 127.0.0.1）
-  port: 8787             # 访问端口 → http://localhost:8787
+  port: 6006             # 访问端口 → http://localhost:6006
   # 向量检索开关：
   #   false → 纯 BM25 模式（当前推荐）。chroma 0.5.x 的 Rust 原生内核在部分
   #        Windows 上 collection.get()/query()/upsert() 会触发原生 access
