@@ -125,6 +125,9 @@ ablation:
     # 需要逐次人工批准时把下面各项清空（standing: []）。
     # ⚠️ `simulate_modelica` **刻意不在**此列：它拉起外部进程（真编译时分钟级），
     #    按决策 4=(a) 必须**逐次人工确认**（confirm_gate 会生成待确认号）。
+    # ⚠️ 判据是「耗时/副作用级别」而非「是否拉起进程」：s2/s3 的平替作业是秒级
+    #    且带超时、重跑回到同一状态，与 run_simulation 同级 ⇒ 进 standing。
+    #    （s2/s3 并发跑，若要逐次确认会同时挂起两张单，人工得点两次。）
     standing:
       - generate_matlab
       - syntax_check_matlab
@@ -132,6 +135,9 @@ ablation:
       # 阶段 2：写本轮产物文件的确定性动作（重跑一次回到同一状态，可复现）
       - requirement_to_ir
       - render_ssim
+      # 阶段 2：平替实跑（OpenVSP 出 wing.vsp3 / xfoil 出真 CL），秒级、有超时
+      - cad_geometry
+      - aero_analysis
     deny_critical: false   # true 则直接拒绝不可逆操作（不生成待确认）
 
   sub_agent_strict:

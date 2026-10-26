@@ -124,6 +124,11 @@
   .flow-legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin-top:11px;flex-wrap:wrap}
   .flow-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle}
   .flow-sep{font-size:11px;color:var(--dim);margin:12px 0 8px;border-top:1px dashed var(--line);padding-top:9px}
+  /* 论文编排 8 阶段（第三行）：节点更密，箭头更短 */
+  .flow-row.pipe .nd{min-width:92px;flex:1 1 92px;margin-right:14px}
+  .flow-row.pipe .nd:not(:last-child)::after{right:-10px;width:7px}
+  .flow-row.pipe .nd:not(:last-child)::before{right:-10px}
+  .flow-row.pipe .nd .nh{letter-spacing:0}
 </style>
 </head>
 <body>
@@ -1346,6 +1351,27 @@ function rqRenderPlan(p) {
       if (res.enabled === false) bits.push('<span class="warn">enabled=false</span>');
       if (res.trailer_ok !== undefined) bits.push("trailer_ok=" + esc(String(res.trailer_ok)));
       if (res.ssim_bytes !== undefined) bits.push(esc(res.ssim_bytes) + " B");
+      /* s2/s3 平替实跑证据：真产物 + 真 CL + 失败原因（三样都得能看见） */
+      if (res.executed === true && res.artifact && res.artifact.path) {
+        bits.push('<span class="ok">真跑 ' + esc(res.backend || res.module || "") + "</span> · <code>" +
+          esc(res.artifact.name || "") + "</code> " + esc(res.artifact.bytes) + " B");
+      }
+      if (res.CL !== undefined && res.CL !== null) bits.push("CL=" + esc(String(res.CL)));
+      if (res.CD !== undefined && res.CD !== null) bits.push("CD=" + esc(String(res.CD)));
+      /* s4：气动到底有没有进积分（used=false 必须说明为什么没进，不能只说"已生成卡片"） */
+      if (res.aero_input && typeof res.aero_input === "object") {
+        var ai = res.aero_input;
+        if (ai.used === true) {
+          bits.push('<span class="ok">气动已进积分</span> · ny_lim=' +
+            esc(String((ai.plant_params || {}).ny_lim)) + " g · Cd=" +
+            esc(String((ai.plant_params || {}).Cd)));
+        } else if (ai.reason) {
+          bits.push('<span class="warn">气动未进积分：' + esc(ai.reason) + "</span>");
+        }
+      }
+      if (res.attempted === true && res.executed === false && res.run_error) {
+        bits.push('<span class="bad">平替实跑失败：' + esc(res.run_error) + "</span>");
+      }
       if (res.not_executed_reason) bits.push('<span class="warn">' + esc(res.not_executed_reason) + "</span>");
     }
     return "<tr><td>" + (i + 1) + "</td><td>" + esc(s.name) +
@@ -1670,16 +1696,52 @@ $("rq_env").onclick = async function () {
       if (v.installed === true || v.available === true) return true;
       return !!(v.native || v.invoke || v.exe);
     }
+    /* 平替是**另报**的，不能把 CATIA 说成已装：商业件没装就是没装。
+       只有 fallback.installed=true 时在"未就绪"后面补一句「平替 X 已装」。 */
+    function fbText(v) {
+      var fb = v && v.fallback;
+      if (!fb || !fb.installed) return "";
+      if (fb.tools) {
+        var hit = [];
+        for (var k in fb.tools) {
+          if (fb.tools[k] && fb.tools[k].installed) hit.push(k === "su2" ? "SU2" : k);
+        }
+        if (!hit.length) return "";
+        return " · 平替 " + esc(hit.join("/")) + " 已装";
+      }
+      return fb.module ? " · 平替 " + esc(fb.module) + " 已装" : "";
+    }
     function one(k, v) {
       return '<span class="pill">' + esc(k) + ": " +
         (ready(v) ? '<span class="ok">已装</span>' : '<span class="warn">' +
-          esc(v && (v.status || v.reason || "未就绪")) + "</span>") + "</span> ";
+          esc(v && (v.status || v.reason || "未就绪")) + fbText(v) + "</span>") + "</span> ";
     }
+    var oss = e.oss || {};
+    var ossNames = [["openvsp", "OpenVSP"], ["xfoil", "xfoil"], ["su2", "SU2"], ["openfoam", "OpenFOAM"]];
+    var ossPills = "";
+    var ossOn = 0;
+    ossNames.forEach(function (p) {
+      var v = oss[p[0]] || {};
+      if (v.installed) ossOn++;
+      ossPills += '<span class="pill">' + p[1] + ": " +
+        (v.installed ? '<span class="ok">已装</span>'
+          : '<span class="warn">未找到</span>') + "</span> ";
+    });
     $("rq_envOut").innerHTML = one("OpenModelica", e.omc) + one("MATLAB", e.matlab) +
       one("CATIA", e.catia) + one("Fluent", e.fluent) +
-      '<div class="hint">注意：二进制在 ≠ 跑得出结果。CATIA/Fluent 真调用还需 CATScript / TUI journal，'
-      + "现在没有 ⇒ 计划里步骤 2/3 会真跑工具，但产出的是<b>默认配置卡</b>（卡内 <code>enabled=false</code>，"
-      + "表示未做真几何重建 / 真 CFD）。</div>";
+      '<div style="margin-top:6px">平替：' + ossPills + "</div>" +
+      '<div class="hint">注意：二进制在 ≠ 跑得出结果。商业 CATIA/Fluent 真调用还需 '
+      + "CATScript / TUI journal，那两样没有 ⇒ 走的是<b>平替</b>。"
+      + (ossOn
+          ? "平替已就位 ⇒ 计划里 <b>s2/s3 会真跑</b>：s2 写 <code>&lt;产物&gt;/cad/wing.vsp3</code>，"
+            + "s3 回传<b>真 CL / CD</b> 与 <code>aero/polar.txt</code>（失败则 executed=false + 原因，不填零）。"
+            + "<br />这两个数会<b>真的进弹道</b>：CL 折成可用过载上限 <code>ny_lim</code>"
+            + "（小了就饱和、脱靶变大），CD 折成阻力减速。s4 那一行会显示「气动已进积分」。"
+          : "平替 <b>0/4</b> 可用 ⇒ s2/s3 只出配置卡（<code>enabled=false</code> + 原因），"
+            + "先 source 安装脚本写的 <code>$HOME/gsm_oss_aero.env</code> 或重启服务让 PATH 生效。")
+      + "<br />平替作业脚本是<b>内置</b>的，不需要额外 journal；单机验证："
+      + "<code>python ssim_mas/cli.py oss-smoke</code>（真跑一遍几何 + 三种气动）。"
+      + "</div>";
   } catch (err) {
     $("rq_envOut").innerHTML = '<span class="bad">探测失败：' + esc(err.message) + "</span>";
   }
@@ -1689,16 +1751,18 @@ $("rq_env").onclick = async function () {
 /* ═══════════════════════════════════════════════════════════════════════
    执行流程节点图（纯 DOM，不引第三方库）
    数据源：GET /api/requirement/status —— **只读投影**，不参与任何判定。
-   两行：①需求→②检索→③计划→④批准→⑤执行→⑥结果
+   三行：①需求→②检索→③计划→④批准→⑤执行→⑥结果
          s1→(s2∥s3)→s4→s5（固定 5 步骨架，与 STEP_TEMPLATE 同序）
+         parse→plan→negotiate(H)→canvas→sim→reflect(R1–R10)（论文链 8 阶段）
    ═══════════════════════════════════════════════════════════════════════ */
 var RQ_STEP_CLS = {
   planned: "plan", running: "run", executed: "done",
   failed: "fail", denied: "deny", pending_confirmation: "wait"
 };
 
-function rqFlowNode(key, title, tool, cls, foot) {
-  return '<div class="nd ' + cls + '"' + (key ? ' data-step="' + esc(key) + '"' : "") + ">" +
+function rqFlowNode(key, title, tool, cls, foot, stage) {
+  return '<div class="nd ' + cls + '"' + (key ? ' data-step="' + esc(key) + '"' : "") +
+    (stage ? ' data-stage="' + esc(stage) + '"' : "") + ">" +
     '<div class="nh">' + esc(key || "") + "</div>" +
     '<div class="nt">' + esc(title) + "</div>" +
     (tool ? '<div class="nx">' + esc(tool) + "</div>" : "") +
@@ -1794,7 +1858,9 @@ function rqRenderFlow(st) {
     [["#2a3543", "未开始"], ["#7f77dd", "执行中"], ["#639922", "已完成"],
      ["#ef9f27", "待人工确认"], ["#e24b4a", "失败"], ["#c47a1e", "闸门拒绝"]]
       .map(function (x) { return "<span><i style=\"background:" + x[0] + "\"></i>" + x[1] + "</span>"; })
-      .join("") + '<span style="margin-left:auto">点步骤节点可看该步结果</span></div>';
+      .join("") + '<span style="margin-left:auto">点任意节点看该步/该阶段详情</span></div>';
+
+  var pipeHtml = rqRenderPipeline(st);
 
   box.innerHTML = '<div class="flow"><div class="flow-h"><b>执行流程</b>' +
     '<span class="pill">' + esc(st.task_id) + "</span>" +
@@ -1802,11 +1868,106 @@ function rqRenderFlow(st) {
     row1 +
     '<div class="flow-sep">固定 5 步骨架（每步都是<b>已登记工具</b>；s2∥s3 并发，s4 独占且需人工确认）</div>' +
     '<div class="flow-row">' + stepsHtml + "</div>" +
+    pipeHtml +
     legend + '<div id="rq_stepdetail"></div></div>';
 
-  Array.prototype.forEach.call(box.querySelectorAll(".nd.click[data-step]"), function (el) {
-    el.onclick = function () { rqShowStep(st, el.getAttribute("data-step")); };
+  Array.prototype.forEach.call(box.querySelectorAll(".nd.click"), function (el) {
+    var sid = el.getAttribute("data-step");
+    var sgn = el.getAttribute("data-stage");
+    el.onclick = function () {
+      if (sid) rqShowStep(st, sid);
+      else if (sgn) rqShowStage(st, sgn);
+    };
   });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   论文链 8 阶段（第三行）
+   数据源：status.pipeline —— 桥层 _pipeline_projection 的**只读投影**。
+   为什么单独一行：修复前 `_RUN_SLIM_KEYS` 不含 stages，协商 H(s) 与反思
+   R1–R10 被整个丢掉，页面上只能看到 s1–s5 五个粗节点，文档里两个关键
+   环节不可见。此行的每个节点都是**真实执行过的阶段**，H=false 时不补假节点。
+   ═══════════════════════════════════════════════════════════════════════ */
+var RQ_STAGE_CN = {
+  parse_requirement: "需求解析", plan: "规划",
+  negotiate: "协商 H(s)", generate_ir: "画布 IR",
+  execute_optimization: "参数寻优", generate_ir_verify: "验证 IR",
+  execute_verification: "验证仿真", reflect: "反思 R1–R10"
+};
+
+/* 阶段脚注：只写**有据可查**的值，取不到就写"未执行"，不猜 */
+function rqStageFoot(name, pipe) {
+  var ng = pipe.negotiation || {}, rf = pipe.reflection || {};
+  if (name === "negotiate") {
+    if (ng.H === undefined || ng.H === null) return "未执行";
+    var h = ng.H === true ? rqDot("#639922") + "H=true" : rqDot("#e24b4a") + "H=false";
+    if (ng.C !== undefined && ng.C !== null) h += " · C=" + esc(String(ng.C));
+    if (ng.counts_as_K_max) h += " · 计入 K_max";
+    return h;
+  }
+  if (name === "reflect") {
+    if (!rf.has_result) return "未执行";
+    var tg = (rf.fired_tagged && rf.fired_tagged.length)
+      ? rf.fired_tagged.join(",") : "无规则命中";
+    return esc(tg) + (rf.action ? " → " + esc(String(rf.action)) : "");
+  }
+  return "";
+}
+
+function rqRenderPipeline(st) {
+  var pipe = st.pipeline || {};
+  var list = pipe.stages || [];
+  if (!list.length) {
+    return '<div class="flow-sep">论文链 8 阶段</div>' +
+      '<div class="flow-row pipe"><div class="nd plan"><div class="nt">未执行</div>' +
+      '<div class="nf">s4 尚未产出编排结果（或未跑到 s4）</div></div></div>';
+  }
+  var nodes = list.map(function (s) {
+    var cls = s.ok === true ? "done" : (s.ok === false ? "fail" : "plan");
+    var foot = rqStageFoot(s.stage, pipe);
+    if (s.error) foot += (foot ? " · " : "") + esc(String(s.error).slice(0, 56));
+    return rqFlowNode("", RQ_STAGE_CN[s.stage] || s.stage, s.stage,
+                      cls + " click", foot, s.stage);
+  }).join("");
+
+  var stopTxt = "";
+  if (pipe.stop) {
+    stopTxt = '<div style="margin-top:8px;font-size:11px;color:#ff9d9c">' +
+      "⛔ H=false 短路：" +
+      esc(String(pipe.stop.reason || pipe.stop.action || "已停止")) +
+      "（不生成画布、不仿真）</div>";
+  }
+  var agentTxt = (pipe.agents && pipe.agents.length)
+    ? " · 本次装载 " + pipe.agents.length + " 个运行体" : "";
+  /* 短路时只有 3 个阶段、没有 reflect：说明文字必须跟着变，
+     否则会写着"反思 R1–R10 都在此行"却一个反思节点都没有（自相矛盾）。 */
+  var hasReflect = list.some(function (x) { return x.stage === "reflect"; });
+  var sepTxt = "论文链 " + list.length + " 阶段（真实执行顺序" +
+    (hasReflect ? "；协商 H(s) 与反思 R1–R10 都在此行" : "；本轮在协商处终止，未跑反思") +
+    agentTxt + "）";
+  return '<div class="flow-sep">' + sepTxt + "</div>" +
+    '<div class="flow-row pipe">' + nodes + "</div>" + stopTxt;
+}
+
+function rqShowStage(st, name) {
+  var box = $("rq_stepdetail");
+  if (!box) return;
+  var pipe = st.pipeline || {};
+  var s = (pipe.stages || []).filter(function (x) { return x.stage === name; })[0] || {};
+  var extra = {};
+  if (name === "negotiate") extra = pipe.negotiation || {};
+  else if (name === "reflect") extra = pipe.reflection || {};
+  else if (name === "parse_requirement" || name === "plan") {
+    extra = { agents: pipe.agents || [], stage_names: pipe.stage_names || [] };
+  }
+  var txt = JSON.stringify({
+    stage: name, cn: RQ_STAGE_CN[name] || name,
+    ok: (s.ok === undefined ? null : s.ok), error: s.error || "",
+    detail: extra, stop: pipe.stop || null, k_count: (pipe.k_count === undefined ? null : pipe.k_count)
+  }, null, 2);
+  box.innerHTML = '<div class="body open" style="max-height:340px;margin-top:10px">' +
+    "<b>" + esc(name) + " · " + esc(RQ_STAGE_CN[name] || "") + "</b>\n" +
+    esc(txt) + "</div>";
 }
 
 function rqSrcText(s) {
@@ -1822,7 +1983,10 @@ function rqShowStep(st, stepId) {
   var keep = {};
   ["ok", "error", "not_executed_reason", "enabled", "ir_path", "report_path",
    "ssim_path", "trailer_ok", "plant_host", "compiled_once", "omc_build",
-   "paper_platform", "result_path", "elapsed_sec", "notes"].forEach(function (k) {
+   "paper_platform", "result_path", "elapsed_sec", "notes",
+   "attempted", "executed", "backend", "artifact", "artifacts", "run_error",
+   "geometry_params", "params_applied", "CL", "CD", "cl_basis", "cd_basis",
+   "alpha_deg", "exe", "aero_input", "aero_used", "aero_plant_params"].forEach(function (k) {
     if (r[k] !== undefined) keep[k] = r[k];
   });
   var tr = rqTraceOf(st, stepId) || {};

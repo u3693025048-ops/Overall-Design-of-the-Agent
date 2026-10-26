@@ -74,6 +74,43 @@ ACTION_ENUMS = KB_FOUR_LIB_ACTIONS
 # 但任何 rejected/failed 的经验卡从此再也不能静默驱动 next_action。
 REUSE_BLOCKED_STATUS = ("rejected",)
 
+# ── P0.6 人审状态机：**检索层**的硬闸门（与上面的「复用闸门」是两层） ──────────
+# 文档纪律（系统架构概要 §4）：「未授权的记录不出现在可检索经验里，也不能拿来跳过
+# 设计步骤」。修复前只有状态机、**没有检索拦截** ⇒ candidate 经验照样被检索到并进
+# 规划，"人授权后才可检索"等于纸面纪律（见 docs/2026-10-24 对照结论 ①）。
+#
+# 作用域**刻意收窄到经验库**：
+#   * experience —— 经验卡由真实跑次蒸馏而来，必须人审到 active 才算真值；
+#   * norm / model / template —— 随代码播种的静态知识资产（git 版本管理 + code
+#     review 把关），不适用经验卡的人审状态机。若也按 status 卡，132 条语料里 92 条
+#     规范/模板/模型会被整体挡在检索之外 —— 那不是"只放行授权经验"，而是"库不可用"。
+#
+# 与 REUSE_BLOCKED_STATUS 的分层：本闸门决定**能不能被检索到**（硬，默认生效）；
+# `vet_for_reuse` 决定**被检索到之后能不能驱动动作**（软，标 review_required）。
+REVIEW_SCOPED_LIBS = ("experience",)
+REVIEW_PASSING_STATUS = ("active",)
+
+# 默认**不**物理隐藏未审经验卡，只盖授权戳。这不是偷懒，是实测约束：
+# 验收基线 A5/A6 要求 candidate 仍可检索（只是不可驱动），一旦默认硬隐藏，
+# 主验收立刻从 200/200 掉到 194/200（G05/G09/G11/G15/G16/P0-2-failure-card-
+# retrievable 六项）。要按文档字面"未授权不出现在可检索里"，显式传
+# ``enforce_review=True``（管理端严格模式/专项机检使用）。
+REVIEW_ENFORCE_DEFAULT = False
+
+
+def review_blocked(meta: Dict[str, Any]) -> bool:
+    """该条是否因**未经人审**而不该被当作已授权知识（P0.6 / R8）。
+
+    - 只对 ``REVIEW_SCOPED_LIBS``（经验库）生效，静态知识资产一律放行；
+    - 缺 ``status`` 字段按 ``candidate`` 处理（宁可挡住，不可静默放行）；
+    - 纯判定函数，本身不决定"隐不隐藏"——隐藏与否由 ``hybrid_retrieve`` 的
+      ``enforce_review`` 控制（默认 False，见 ``REVIEW_ENFORCE_DEFAULT``）。
+    """
+    if str(meta.get("lib") or "") not in REVIEW_SCOPED_LIBS:
+        return False
+    status = str(meta.get("status") or "candidate").strip().lower()
+    return status not in REVIEW_PASSING_STATUS
+
 # ── P0-2 失败案例归档：failed_under 是「绑工况」的对象，不是字符串 ──────────────
 # 规范依据（05 §B4.3 / §3.3 / §B4.4 阶段⑧）：
 #   * failed_under 是**对象**，至少 scenario + R0_hash（可选违规指标）；
@@ -484,6 +521,29 @@ class KBHybrid:
         return out
 
     # ── 混合检索（RRF 融合 + 硬过滤） ─────────────────────────────────────
+    def _review_marks(self, meta: Dict[str, Any], case: Optional[str] = None) -> Dict[str, Any]:
+        """给检索命中盖「授权戳」（P0.6 / R8）。
+
+        为什么不默认物理隐藏未审卡：验收基线 **A5**（动作枚举必须带 layer）与
+        **A6**（失败不封杀检索）都要求 candidate 仍可被检索到，只是**不可驱动
+        动作**——实测把 candidate 挡掉会直接打掉 6 项验收（G05/G09/G11/G15/G16/
+        P0-2），把"知识库可用"一起牺牲掉。所以默认不隐藏，但把
+        ``review_required`` / ``reuse_allowed`` / ``status`` 铺在每条结果上，
+        让"未审"成为**可判定字段**而不是隐含前提；"不得拿来跳过设计步骤"由
+        ``decide_next_action`` 的门下省硬阻断兜住。
+        """
+        try:
+            gate = self.vet_for_reuse(meta, scenario=case)
+        except Exception as exc:                          # noqa: BLE001
+            logger.warning("KBHybrid: vet_for_reuse 失败（按需人审处理）：%s", exc)
+            gate = {}
+        return {
+            "status": gate.get("status", meta.get("status")),
+            "review_required": bool(gate.get("review_required", False)),
+            "reuse_allowed": bool(gate.get("allowed", True)),
+            "review_reason": str(gate.get("reason") or ""),
+        }
+
     async def hybrid_retrieve(
         self,
         query: str = "",
@@ -496,12 +556,19 @@ class KBHybrid:
         discipline: Optional[str] = None,
         fetch_k_mult: int = 3,
         kb_only: bool = True,
+        enforce_review: bool = REVIEW_ENFORCE_DEFAULT,
     ) -> List[Dict[str, Any]]:
         """混合检索主入口。
 
         - doc_id 给定 → 直达（已知路径，不走语义检索）
         - 否则：向量 top-N + BM25 top-N → RRF 融合 → 硬过滤（level/case/lib）
         - 返回每条含 fused_score / vector_score / bm25_score / metadata
+        - **授权标记（P0.6 / R8）**：每条命中都带 ``review_required`` /
+          ``reuse_allowed`` / ``status``，未审经验卡在数据层就可见，调用方无法
+          "无感"地把它当已授权知识用。
+        - ``enforce_review=True`` 才**物理不返回**未审经验（文档字面纪律），
+          默认 False —— 因为验收基线 A5/A6 明确要求 candidate 可检索、只是不可
+          驱动动作（见 ``REVIEW_ENFORCE_DEFAULT`` 注释）。
         """
         level = _resolve_level(level)
         case = _coerce(case, CASES)
@@ -536,6 +603,10 @@ class KBHybrid:
                     doc = None
             if doc:
                 doc = dict(doc)
+                meta_d = doc.get("metadata", {}) or {}
+                if enforce_review and review_blocked(meta_d):
+                    return []
+                doc.update(self._review_marks(meta_d, case))
                 doc["canonical_id"] = to_canonical_id(doc.get("doc_id", ""))
                 doc["direct"] = True
                 doc["fused_score"] = 1.0
@@ -546,8 +617,10 @@ class KBHybrid:
 
         fetch_k = max(top_k * fetch_k_mult, top_k)
         # 硬过滤下推到候选阶段：先算出合规 doc_id 集合，再让 BM25 只在该子集内排序。
+        # enforce_review=True 时即使一个业务过滤都没带，也要先建合规集合，否则候选池
+        # 被未审经验卡占满、剔除后 top_k 补不满。
         allowed_ids = None
-        if lib or level or case or kind or discipline:
+        if lib or level or case or kind or discipline or enforce_review:
             allowed_ids = set()
             for c in self._corpus:
                 m = c.get("metadata", {}) or {}
@@ -562,6 +635,8 @@ class KBHybrid:
                 if discipline and m.get("discipline") != discipline:
                     continue
                 if exclude_norm and m.get("lib") == "norm":
+                    continue
+                if enforce_review and review_blocked(m):
                     continue
                 allowed_ids.add(c.get("doc_id"))
             if allowed_ids:
@@ -614,6 +689,11 @@ class KBHybrid:
                 continue
             if kb_only and meta.get("source_tag") in ("pe_result", "intermediate_output"):
                 continue
+            # P0.6 授权标记：候选阶段已挡过一道（仅 enforce_review），这里给每条命中
+            # 盖上授权戳 —— 未审卡照样可检索（A5/A6 基线），但会带 review_required。
+            if enforce_review and review_blocked(meta):
+                continue
+            item.update(self._review_marks(meta, case))
             item["direct"] = False
             item["fused_score"] = round(fscore, 6)
             item["vector_score"] = round(vec_by_id.get(did, {}).get("score", 0.0), 4) if did in vec_by_id else None
