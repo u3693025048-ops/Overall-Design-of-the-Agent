@@ -26,8 +26,13 @@
   nav{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--panel)}
   nav button{background:none;border:none;color:var(--mut);padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent}
   nav button.on{color:var(--txt);border-bottom-color:var(--acc)}
-  main{padding:18px 20px;max-width:1100px}
+  /* 主内容区随屏宽自适应（原来写死 max-width:1100px，宽屏右侧全程留白） */
+  main{padding:18px 20px;width:100%;max-width:none}
   .tab{display:none} .tab.on{display:block}
+  /* 宽表在窄屏横向滚动兜底；配置页除外，避免打断 .conf-bar 的 sticky */
+  section.tab.on:not(#conf){overflow-x:auto}
+  /* 长文本列（doc_id 等）跟着屏宽伸缩，宽屏多显示、窄屏截断 */
+  .docid{max-width:clamp(260px,40vw,760px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   select,input,textarea{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
   textarea{width:100%;min-height:140px;resize:vertical}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -129,6 +134,28 @@
   .flow-row.pipe .nd:not(:last-child)::after{right:-10px;width:7px}
   .flow-row.pipe .nd:not(:last-child)::before{right:-10px}
   .flow-row.pipe .nd .nh{letter-spacing:0}
+
+  /* ── 执行日志：长表各自滚动 + 表头吸附（57 个产物也不拉爆整页） ── */
+  .lg-scroll{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .lg-scroll table{margin:0}
+  .lg-scroll thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+
+  /* ── 窄屏降级（≤820px）：留白收紧、表头/单元最小化、配置页两列变一列 ── */
+  @media (max-width:820px){
+    header{flex-wrap:wrap;gap:10px}
+    .stat{gap:12px}
+    main{padding:12px}
+    th,td{padding:6px 7px;font-size:12px}
+    .docid{max-width:46vw}
+    .conf-field{grid-template-columns:1fr}
+    .conf-field .ch{grid-column:1}
+    .conf-field .cv input,.conf-field .cv select{max-width:none}
+    .flow-row.pipe .nd{min-width:80px;margin-right:10px}
+  }
+  /* 手机宽度：7 列挤不下会竖排成单字，改为保底宽度 + 横向滚动 */
+  @media (max-width:700px){
+    #docTable{min-width:600px}
+  }
 </style>
 </head>
 <body>
@@ -172,6 +199,7 @@
   <button data-t="eval" id="navEval">评估</button>
   <button data-t="val" id="navVal">机检</button>
   <button data-t="req" id="navReq">需求执行</button>
+  <button data-t="log" id="navLog">执行日志</button>
   <button data-t="conf" id="navConf" style="display:none">配置</button>
 </nav>
 <main>
@@ -335,6 +363,36 @@
 
     <div class="hint" style="margin-top:16px">历史任务（新→旧）：</div>
     <div id="rq_history"></div>
+  </section>
+
+  <!-- 执行日志：从「丢需求」到「跑完」，每一步都留痕；产物点开即看 -->
+  <section class="tab" id="log">
+    <div class="hint">
+      <b>执行日志</b>：每一次「丢需求 → 三段检索 → 计划 → 人审 → 执行 → 确认 → 跑完」都追加落进
+      <code>logs/journal.sqlite</code>。<b>每一步</b>都有开始/结束、两道闸门的裁定、真实耗时与结果摘要；
+      本轮产物全部登记在册，<b>点开直接看</b>（文本按纯文本显示，几何/仿真等二进制按浏览器默认）。
+      <br />口径：<code>events</code> 是<b>只追加</b>的事实流（审计依据），<code>runs</code> 只是当前快照；
+      日志库是旁路 —— 写日志失败不影响执行，也<b>绝不写</b> <code>deliverables/07_runs/</code>。
+    </div>
+    <div class="row">
+      <select id="lg_status">
+        <option value="">全部状态</option>
+        <option value="succeeded">成功</option>
+        <option value="failed">失败</option>
+        <option value="running">执行中</option>
+        <option value="awaiting_confirmation">待确认</option>
+        <option value="pending">待批准</option>
+        <option value="approved">已批准未执行</option>
+        <option value="rejected">已驳回</option>
+      </select>
+      <input id="lg_q" placeholder="按需求原文 / run_id / 提交人筛选" style="flex:1;min-width:240px" />
+      <label class="pill">条数 <input id="lg_limit" type="number" value="100" min="1" max="1000" style="width:70px;margin-left:4px" /></label>
+      <button class="btn acc" id="lg_refresh">刷新</button>
+      <label class="pill"><input type="checkbox" id="lg_auto" /> 每 3 秒自动刷新</label>
+    </div>
+    <div id="lg_stat" class="hint"></div>
+    <div id="lg_list"></div>
+    <div id="lg_detail"></div>
   </section>
 
   <!-- 配置（仅 admin）：白名单字段可改，写回 config.yaml 并热重载 -->
@@ -554,6 +612,7 @@ document.querySelectorAll("nav button").forEach(function (b) {
       rqHistory(); rqRefreshReflow(); rqRefreshFlow();
       setTimeout(function () { $("rq_text").focus(); }, 0);
     }
+    if (t === "log") lgLoad();
     if (t === "conf") confLoad();
   };
 });
@@ -652,7 +711,7 @@ async function listDocs() {
     rows.forEach(function (d) {
       var tr = document.createElement("tr");
       tr.innerHTML =
-        '<td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(d.doc_id) + '">' +
+        '<td class="docid" title="' + esc(d.doc_id) + '">' +
           '<span class="link">' + esc(d.doc_id) + "</span></td>" +
         "<td>" + esc(d.lib || "") + "</td><td>" + esc(d.level || "") + "</td><td>" + esc(d.case || "") + "</td>" +
         "<td>" + esc(d.confidence === null || d.confidence === undefined ? "" : d.confidence) + "</td>" +
@@ -2184,6 +2243,196 @@ async function confSave() {
 
 $("confSave").onclick = confSave;
 $("confReset").onclick = function () { CONF.changes = {}; confLoad(true); };
+
+/* ── 执行日志（journal：从丢需求到跑完，每一步都留痕） ─────────────── */
+var LG = { runId: "", timer: null };
+var LG_STATUS = {
+  succeeded: ["成功", "ok"], failed: ["失败", "bad"],
+  running: ["执行中", "warn"], awaiting_confirmation: ["待确认", "warn"],
+  pending: ["待批准", ""], approved: ["已批准", ""], rejected: ["已驳回", "bad"],
+  executed: ["已执行", "ok"], planned: ["待执行", ""], denied: ["被拒", "bad"],
+  pending_confirmation: ["待确认", "warn"],
+};
+var LG_KIND = {
+  requirement_submitted: "需求提交", retrieval: "三段检索", plan_created: "计划生成",
+  plan_approved: "人审批准", plan_rejected: "人审驳回",
+  run_started: "开始执行", step_start: "步骤开始", step_end: "步骤结束",
+  confirmation_pending: "等待确认", confirmation_resolved: "确认裁决",
+  run_finished: "执行完成", run_failed: "执行失败", reflow: "回流沉淀", error: "异常",
+};
+
+function lgBadge(st) {
+  var m = LG_STATUS[st] || [st || "—", ""];
+  return '<span class="' + m[1] + '">' + esc(m[0]) + "</span>";
+}
+function lgKind(k) { return LG_KIND[k] || k || "—"; }
+function lgTime(s) {
+  var t = String(s || "");
+  return t ? t.replace("T", " ").slice(0, 19) : "—";
+}
+function lgSize(n) {
+  if (n === null || n === undefined) return "—";
+  var v = Number(n);
+  if (!isFinite(v)) return "—";
+  if (v < 1024) return v + " B";
+  if (v < 1048576) return (v / 1024).toFixed(1) + " KB";
+  return (v / 1048576).toFixed(2) + " MB";
+}
+function lgDur(ms) {
+  if (ms === null || ms === undefined) return "—";
+  var v = Number(ms);
+  if (!isFinite(v)) return "—";
+  return v < 1000 ? v + " ms" : (v / 1000).toFixed(2) + " s";
+}
+function lgFileUrl(runId, rel) {
+  return "/api/journal/file?run_id=" + encodeURIComponent(runId) +
+         "&rel=" + encodeURIComponent(rel);
+}
+
+async function lgLoad() {
+  var lim = parseInt($("lg_limit").value, 10) || 100;
+  var p = new URLSearchParams();
+  p.set("limit", String(lim));
+  if ($("lg_status").value) p.set("status", $("lg_status").value);
+  if ($("lg_q").value.trim()) p.set("q", $("lg_q").value.trim());
+  $("lg_list").innerHTML = '<span class="spin">加载中…</span>';
+  try {
+    var r = await api("/api/journal/runs?" + p.toString());
+    var st = await api("/api/journal/stats");
+    $("lg_stat").innerHTML =
+      "共 <b>" + (st.total_runs || 0) + "</b> 个跑次 · 事件 <b>" + (st.events || 0) +
+      "</b> 条 · 登记文件 <b>" + (st.files || 0) + "</b> 个 · 库 <code>" + esc(st.db || "") + "</code>";
+    lgRenderList(r.runs || []);
+  } catch (e) {
+    $("lg_list").innerHTML = '<div class="hint bad">读取失败：' + esc(e.message) + "</div>";
+  }
+}
+
+function lgRenderList(rows) {
+  if (!rows.length) {
+    $("lg_list").innerHTML = '<div class="hint">还没有执行记录。去「需求执行」提交一段需求试试。</div>';
+    return;
+  }
+  var tr = rows.map(function (r) {
+    var req = String(r.requirement_brief || "").replace(/\s+/g, " ");
+    return "<tr>" +
+      "<td style=\"white-space:nowrap\">" + esc(lgTime(r.created_at)) + "</td>" +
+      "<td><span class=\"link\" data-run=\"" + esc(r.run_id) + "\">" + esc(r.run_id) + "</span></td>" +
+      "<td>" + esc(r.created_by || "—") + "</td>" +
+      "<td>" + lgBadge(r.status) + "</td>" +
+      "<td class=\"docid\" title=\"" + esc(req) + "\">" + esc(req || "—") + "</td>" +
+      "<td>" + (r.n_ok || 0) + "/" + (r.n_steps || 0) + "</td>" +
+      "<td>" + (r.elapsed_sec === null || r.elapsed_sec === undefined ? "—" : r.elapsed_sec + " s") + "</td>" +
+      '<td><button class="btn actbtn" data-run="' + esc(r.run_id) + '">看</button></td>' +
+      "</tr>";
+  }).join("");
+  $("lg_list").innerHTML =
+    '<table><thead><tr><th>提交时间</th><th>run_id</th><th>提交人</th><th>状态</th>' +
+    '<th style="width:42%">需求</th><th>步数</th><th>耗时</th><th>操作</th></tr></thead><tbody>' +
+    tr + "</tbody></table>";
+  $("lg_list").querySelectorAll("[data-run]").forEach(function (el) {
+    el.onclick = function () { lgOpen(el.dataset.run); };
+  });
+}
+
+async function lgOpen(runId) {
+  if (!runId) return;
+  LG.runId = runId;
+  $("lg_detail").innerHTML = '<span class="spin">加载 ' + esc(runId) + " …</span>";
+  try {
+    var r = await api("/api/journal/run/" + encodeURIComponent(runId));
+    lgRenderDetail(r.run || {});
+  } catch (e) {
+    $("lg_detail").innerHTML = '<div class="hint bad">打开失败：' + esc(e.message) + "</div>";
+  }
+}
+
+function lgRenderDetail(d) {
+  var evs = d.events || [];
+  var files = d.files || [];
+  var evRows = evs.map(function (e) {
+    var detail = "";
+    if (e.payload) {
+      detail = '<details style="margin-top:4px"><summary style="cursor:pointer;' +
+        'font-size:11px;color:var(--dim)">入参 / 结果</summary>' +
+        '<pre style="max-height:240px;overflow:auto;white-space:pre-wrap;font-size:11px;' +
+        'color:var(--mut);background:var(--panel2);border:1px solid var(--line);' +
+        'border-radius:6px;padding:8px;margin:6px 0 0">' +
+        esc(JSON.stringify(e.payload, null, 1)) + "</pre></details>";
+    }
+    return "<tr>" +
+      "<td>" + e.seq + "</td>" +
+      "<td style=\"white-space:nowrap\">" + esc(lgTime(e.at)) + "</td>" +
+      "<td><span class=\"pill\">" + esc(lgKind(e.kind)) + "</span></td>" +
+      "<td>" + esc(e.step_id || "—") + "</td>" +
+      "<td>" + esc(e.tool || "—") + "</td>" +
+      "<td>" + (e.status ? lgBadge(e.status) : "—") + "</td>" +
+      "<td style=\"white-space:nowrap\">" + lgDur(e.duration_ms) + "</td>" +
+      "<td>" + esc(e.message || "") + detail + "</td>" +
+      "</tr>";
+  }).join("");
+
+  var fRows = files.map(function (f) {
+    return "<tr>" +
+      '<td><span class="pill">' + esc(f.role || "—") + "</span></td>" +
+      '<td><a class="link" href="' + lgFileUrl(d.run_id, f.rel_path) +
+        '" target="_blank" rel="noopener">' + esc(f.rel_path) + "</a></td>" +
+      "<td style=\"white-space:nowrap\">" + lgSize(f.bytes) + "</td>" +
+      '<td><code>' + esc(String(f.sha256 || "").slice(0, 8)) + "</code></td>" +
+      "</tr>";
+  }).join("");
+
+  $("lg_detail").innerHTML =
+    '<div class="card" style="margin-top:14px">' +
+      '<div class="row" style="margin-bottom:6px">' +
+        "<b>" + esc(d.run_id) + "</b>　" + lgBadge(d.status) +
+        '　<span class="pill">' + esc(d.kind || "—") + "</span>" +
+        '　<span class="pill">提交人 ' + esc(d.created_by || "—") + "</span>" +
+        '　<span class="pill">耗时 ' +
+          (d.elapsed_sec === null || d.elapsed_sec === undefined ? "—" : d.elapsed_sec + " s") +
+        "</span>" +
+        '　<span class="pill">步数 ' + (d.n_ok || 0) + "/" + (d.n_steps || 0) + "</span>" +
+        '<button class="btn actbtn" id="lg_close" style="margin-left:auto">收起</button>' +
+      "</div>" +
+      (d.requirement
+        ? '<details style="margin:6px 0"><summary style="cursor:pointer;font-size:12px;' +
+          'color:var(--mut)">需求原文</summary>' +
+          '<div style="white-space:pre-wrap;font-size:12.5px;color:var(--txt);' +
+          'background:var(--panel2);border:1px solid var(--line);border-radius:8px;' +
+          'padding:10px;margin-top:6px">' + esc(d.requirement) + "</div></details>"
+        : "") +
+      (d.error ? '<div class="hint bad">' + esc(d.error) + "</div>" : "") +
+      (d.run_dir ? '<div class="hint">跑次目录：<code>' + esc(d.run_dir) + "</code></div>" : "") +
+    "</div>" +
+    '<div class="hint" style="margin-top:12px">事件流（' + evs.length +
+      ' 条，按发生顺序；<b>只追加</b>，可滚动）</div>' +
+    (evRows
+      ? '<div class="lg-scroll"><table><thead><tr><th>#</th><th>时间</th><th>事件</th>' +
+        "<th>步骤</th><th>工具</th><th>状态</th><th>耗时</th>" +
+        '<th style="width:44%">说明</th></tr></thead><tbody>' + evRows + "</tbody></table></div>"
+      : '<div class="hint">无事件。</div>') +
+    '<div class="hint" style="margin-top:16px">本轮产物（' + files.length +
+      ' 个，<b>点路径直接打开</b>；可滚动）</div>' +
+    (fRows
+      ? '<div class="lg-scroll"><table><thead><tr><th>角色</th><th>路径</th>' +
+        "<th>大小</th><th>sha256</th></tr></thead><tbody>" + fRows + "</tbody></table></div>"
+      : '<div class="hint">无登记文件（跑次目录可能已被清理）。</div>');
+  var cb = $("lg_close");
+  if (cb) cb.onclick = function () { $("lg_detail").innerHTML = ""; LG.runId = ""; };
+}
+
+$("lg_refresh").onclick = lgLoad;
+$("lg_status").onchange = lgLoad;
+$("lg_q").addEventListener("keydown", function (e) { if (e.key === "Enter") lgLoad(); });
+$("lg_auto").onchange = function () {
+  if (LG.timer) { clearInterval(LG.timer); LG.timer = null; }
+  if ($("lg_auto").checked) {
+    LG.timer = setInterval(function () {
+      lgLoad();
+      if (LG.runId) lgOpen(LG.runId);
+    }, 3000);
+  }
+};
 
 /* ── 启动 ───────────────────────────────────────────────────────────── */
 boot();

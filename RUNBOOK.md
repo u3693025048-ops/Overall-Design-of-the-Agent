@@ -269,3 +269,25 @@ T 工况下 PM/BW 为设计点常量，**正常现象**；看 Miss / PeakNy(max)
 2. 使用的 `--prompt` 或 `prompt.txt`  
 3. `config.yaml` 中是否改过 `max_episodes` / `layer3_strategy`  
 4. MATLAB 还是 Octave、Python 版本  
+
+---
+
+## 9. 升级代码后：数据库要不要单独动？
+
+**执行日志库**（`logs/journal.sqlite`）是唯一会随版本加表/加列的库，升级后不必删库重建：
+
+```bash
+PY=./venv/bin/python          # Windows: ./venv/Scripts/python.exe
+
+$PY scripts/migrate_db.py --status          # 只体检（只读）；有待应用时退出码 3
+$PY scripts/migrate_db.py --apply           # 备份 .bak-<时间戳> → 补齐 → 核对行数
+```
+
+* `--status` 说「待应用：无」⇒ 什么都不用做（库已是当前 schema）。
+* `--apply` 会先备份再补表/补列/补索引，**不删任何行**；迁移前后逐表比对行数，不一致就报失败（退出码 1）。
+* 不跑脚本也能用：服务起来后第一次访问会自动补表（只是没有备份留档）。
+* 若提示「库 schema 高于本代码」⇒ 代码比库旧，先升级代码；若提示「主键列缺失」⇒ 该库需重建，
+  先把 `journal.sqlite` 改名留档再让服务重建（`events` 仍可在旧文件里查）。
+
+其他库（`deliverables/07_runs/ledger.sqlite`、回流台账）**不需要**手工迁移。
+详细说明见 `docs/2026-10-26/执行日志管理.md` §9。

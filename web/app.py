@@ -927,6 +927,67 @@ async def api_req_artifact(task_id: str, name: str):
     return FileResponse(str(p), filename=p.name)
 
 
+# ── 执行日志（journal）：从「丢需求」到「跑完」的每一步都留痕 ─────────────────
+# 存储：`logs/journal.sqlite`（`REQUIREMENT_JOURNAL_DB` 可覆盖）。
+# 三条口径（与需求执行同源，不得放宽）：
+#   1. `events` **只追加**（append-only），是审计依据；`runs` 只是当前快照。
+#   2. 文件口子只认**库里已登记**的 rel_path，解析后必须仍在跑次目录内
+#      （外部输入，不能只靠调用方自觉）。
+#   3. 文本类强制 `text/plain`（浏览器直接看），其它交给浏览器；**不执行任何内容**。
+def _journal():
+    from multi_agent.integration import journal
+    return journal
+
+
+@APP.get("/api/journal/stats")
+async def api_journal_stats():
+    """日志总览（跑次数 / 各状态 / 事件数 / 文件数 / 库路径）。"""
+    return await asyncio.to_thread(_journal().stats)
+
+
+@APP.get("/api/journal/runs")
+async def api_journal_runs(limit: int = 100, status: str = "", q: str = ""):
+    """跑次列表（新→旧），可按状态 / 关键字（需求原文、run_id、提交人）过滤。"""
+    jn = _journal()
+    rows = await asyncio.to_thread(
+        lambda: jn.list_runs(limit=limit, status=status, q=q))
+    return {"ok": True, "count": len(rows), "runs": rows}
+
+
+@APP.get("/api/journal/run/{run_id}")
+async def api_journal_run(run_id: str):
+    """单个跑次全文：快照 + 全部事件（按 seq）+ 全部文件。"""
+    jn = _journal()
+    try:
+        run = await asyncio.to_thread(jn.get_run, run_id)
+    except jn.JournalError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"没有这个跑次：{run_id}")
+    return {"ok": True, "run": run}
+
+
+@APP.get("/api/journal/file")
+async def api_journal_file(run_id: str, rel: str):
+    """**点开就能看**：按库里登记的相对路径返回文件（inline，不强制下载）。
+
+    三道拦截：run_id 白名单正则 → ``files`` 表必须登记过该 rel → 解析后仍在
+    跑次目录内。文本类统一 ``text/plain``，避免把用户产物当页面执行。
+    """
+    jn = _journal()
+    try:
+        p = await asyncio.to_thread(jn.resolve_file, run_id, rel)
+    except jn.JournalError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return FileResponse(
+        str(p),
+        media_type=jn.inline_media_type(p),
+        headers={"Content-Disposition": "inline",
+                 "X-Content-Type-Options": "nosniff",
+                 "Cache-Control": "no-store"},
+    )
+
+
 # ── 阶段 3 回流闭环：跑完沉淀的经验卡「待审 → 人审 → 签字生效」─────────────
 # 回流卡与话料落在**运行期沉淀区**（`logs/requirement_runner/experience_reflow/`，
 # 可用 `REQUIREMENT_REFLOW_ROOT` 覆盖），台账也自带一本（`ledger.reflow.sqlite`）
